@@ -1,0 +1,64 @@
+From Johan Alfredéen to Everyone:  01:15 PM
+sounds good
+From Viking Nilsson to Everyone:  01:15 PM
+yea
+From Suraj to Everyone:  01:15 PM
+Loud and clear
+From Aleksander Vogli to Everyone:  01:15 PM
+Yes
+From Viking Nilsson to Everyone:  01:23 PM
+i think youve stopped recording
+From David J.T. Sumpter to Everyone:  01:44 PM
+Question: I'm a bit confused about notation. We have beta and beta"hat", where beta is the unknown deterministic variable? Why do we use beta"hat" ? (slides 20-23)
+From Jonas to Everyone:  01:45 PM
+How much of the course will focus on the errors, eg for different sets of data? 
+From Erik Sundberg to Everyone:  01:47 PM
+Q: Does k indicate the amount of dimensions of the space that the line passes through? So for k = 1, we had 2 dimensions – does that mean for k = 2, we have three dimensions? (assuming linear independence!)
+From David J.T. Sumpter to Everyone:  02:10 PM
+Question: I’m a bit confused by the notation of the x from you recently written notes, does x”11” or x”1k” mean that we take in the account three dimensions?
+Answer: No. It is still 2d. The double index implies it is now the entry in the matrix x.
+Answer: Does best fit mean that that model has the biggest probability to predict a "new" output value correct?
+Question: Does best fit mean that that model has the biggest probability to predict a "new" output value correct?
+Answer: YES!!! Great question. This is what I mean when I say Maximum Likelihood. The parameters which give the most probable prediction.
+Q: Does k indicate the amount of dimensions of the space that the line passes through? So for k = 1, we had 2 dimensions – does that mean for k = 2, we have three dimensions? (assuming linear independence!)
+A: In this case we have a 0, corresponding to the intercept with the line. So there are k+1 parameters.
+Q: Did you say it's dangerous to predict points outside the collected data because the model might not be accurate anymore or are there other reasons too?
+From David J.T. Sumpter to Everyone:  02:13 PM
+A: This is the primary reason. You have no information that the model works there. One clear example is in the speed model at speed=0. The model predicts -10 stopping distance!
+Q: Can prediction in the context of linear regression be thought of as interpolation and extrapolation?
+A: Yes. Interpolation when inside the data (like the first data point) and extrapolation when outside  (like second data point I talked about).
+Q: Not sure I understand "a linear regression model with nonlinear transformation of the input variables" on slide 11. Are you Calling the fitted curve on slide 11 a linear model?
+A: I’ll come back to that. But if I take speed squared as my input, for example.
+From Felicia Fredriksson to Everyone:  02:14 PM
+You might have mentioned this and I missed it, but is beta hat a vector too or a scaler?
+From Spnecer V to Everyone:  02:15 PM
+Q: Why are distances not taken tangent to the line?
+From Andreas Blom to Everyone:  02:16 PM
+because we want the error right? true value - model prediction
+From Carl Skoghagen to Everyone:  02:35 PM
+could you force Beta_0 to be 0 or any arbitrary value?
+From David J.T. Sumpter to Everyone:  02:36 PM
+Q: Why are distances not taken tangent to the line?
+A: It is valid to have that error function. The assumption her is that there is no error in the stopping distance measurements. (Which might not be fully valid).
+From Johan Alfredéen to Everyone:  02:41 PM
+overfitted
+From Felix Gustafsson to Everyone:  02:42 PM
+Terrible between data points
+From Christine Arkbo to Everyone:  02:42 PM
+Noise?
+From Spnecer V to Everyone:  02:42 PM
+Infinities
+From Ville Mattsson Kjellqvist to Everyone:  02:42 PM
+It also captures the error term perfectly
+From Max to Everyone:  02:42 PM
+doesnt consider error in data points
+From Hugo Kvanta to Everyone:  02:42 PM
+Predictions between -2.5 and -2 will be insane
+From Me to Everyone:  02:42 PM
+overshoots alot between points
+From Suraj to Everyone:  02:42 PM
+Too good to be true
+From Carl Skoghagen to Everyone:  02:42 PM
+noice sencitive
+From Aikaterini Manousidou to Everyone:  02:43 PM
+Not differentiable
