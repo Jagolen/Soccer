@@ -1,0 +1,6 @@
+mplsoccer==1.0.7
+streamlit==1.13.0
+pandas==1.3.5
+matplotlib==3.5.2
+pyarrow==5.0.0
+st-row-buttons==0.0.4
