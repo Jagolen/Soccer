@@ -73,7 +73,7 @@ with st.spinner("Loading"):
         model_pass_log, model_pass_lin, =  get_pass_model()
 
         #For ROC/SCORE
-        dfr = pd.read_parquet(f"{ROOT_DIR}/data/pass_xg.parquet")
+        dfr = pd.read_parquet(f"{ROOT_DIR}/data/possessions_xg.parquet")
 
         # Only Open play passes
         dfr = dfr[dfr['chain_type'] == 'open_play']
@@ -84,58 +84,7 @@ with st.spinner("Loading"):
         # Only successful passes
         dfr = dfr[(dfr['outcome'])]
 
-        dfr = feature_creation(dfr)
 
-        PASS_LOG_MODEL_COLUMNS = [
-            'const',
-            'start_x', 'end_x',
-            'end_y_adj', 'start_y_adj',
-            'start_x*start_y_adj', 'start_x*start_x',
-            'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
-            'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
-            'start_x*end_x*end_y_adj',
-            'start_x*start_x*end_x',
-            'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
-            'end_y_adj*end_y_adj*start_y_adj',
-
-        ]
-
-        PASS_LIN_MODEL_COLUMNS = [
-            'const',
-            'start_x', 'end_x',
-            'end_y_adj', 'start_y_adj',
-            'cross*end_x',
-            'through_pass*end_x',
-            'start_x*start_y_adj', 'start_x*start_x',
-            'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
-            'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
-            'start_x*end_x*end_y_adj',
-            'start_x*start_x*end_x',
-            'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
-            'end_y_adj*end_y_adj*start_y_adj',
-            'switch',
-            'pass_length',
-            'assist',
-            'directness*end_x',
-            'distance_start',
-            'distance_end',
-            'time_difference',
-            'time_from_chain_start'
-        ]
-        dfr['const'] = 1
-        for var in (PASS_LOG_MODEL_COLUMNS+PASS_LIN_MODEL_COLUMNS):
-            if var not in dfr:
-                dfr[var] = dfr.eval(var)
-        X = dfr.copy()
-        Ylog = X.loc[:, X.columns == 'chain_shot']
-        Ylin = X.loc[:, X.columns == 'chain_xG']
-        Xlog = X[PASS_LOG_MODEL_COLUMNS]
-        Xlin = X[PASS_LIN_MODEL_COLUMNS]
-        Ylog_pred = model_pass_log.predict(Xlog).values
-        Ylin_pred = model_pass_lin.predict(Xlin).values
-
-        fpr, tpr, weight = skm.roc_curve(Ylog, Ylog_pred)
-        auc = skm.auc(fpr, tpr)
 
         # Merged
         def create_dataset_start(start_x,start_y,one_dim=True, simple=False):
@@ -254,6 +203,98 @@ with st.spinner("Loading"):
                 columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
                 columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
             if test_old_model == 'Trained model':
+                col11, col22, col33 = st.columns([1,6,1])
+                with col11:
+                    st.write("")
+                with col22:
+                    st.write("")
+                with col33:
+                    dataset = st.selectbox("Select Dataset for stats",["Use All Data", "Choose League"])
+                    if dataset == "Choose League":
+                        allsvenska = st.checkbox('Allsvenskan', value=True)
+                        bundes = st.checkbox('Bundesliga', value=True)
+                        seriea = st.checkbox('Serie A', value=True)
+                        pleague = st.checkbox('Premier League', value=True)
+                        laliga = st.checkbox('La Liga', value=True)
+                        norway = st.checkbox('Norway', value=True)
+                        denmark = st.checkbox('Denmark', value=True)
+                        tournaments = []
+                        if allsvenska:
+                            tournaments.append(13)
+                        if bundes:
+                            tournaments.append(3)
+                        if seriea:
+                            tournaments.append(20)
+                        if pleague:
+                            tournaments.append(12)
+                        if laliga:
+                            tournaments.append(21)
+                        if norway:
+                            tournaments.append(19)
+                        if denmark:
+                            tournaments.append(18)
+                        backup_dataframe = dfr.copy()
+                        dfr = dfr[dfr['tournament_id'].isin(tournaments)]
+                        if dfr.empty:
+                            dfr = backup_dataframe
+                            st.write("No data for this selection, using whole dataset instead")
+                            
+
+
+                dfr = feature_creation(dfr)
+                PASS_LOG_MODEL_COLUMNS = [
+                    'const',
+                    'start_x', 'end_x',
+                    'end_y_adj', 'start_y_adj',
+                    'start_x*start_y_adj', 'start_x*start_x',
+                    'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
+                    'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
+                    'start_x*end_x*end_y_adj',
+                    'start_x*start_x*end_x',
+                    'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
+                    'end_y_adj*end_y_adj*start_y_adj',
+
+                ]
+
+                PASS_LIN_MODEL_COLUMNS = [
+                    'const',
+                    'start_x', 'end_x',
+                    'end_y_adj', 'start_y_adj',
+                    'cross*end_x',
+                    'through_pass*end_x',
+                    'start_x*start_y_adj', 'start_x*start_x',
+                    'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
+                    'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
+                    'start_x*end_x*end_y_adj',
+                    'start_x*start_x*end_x',
+                    'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
+                    'end_y_adj*end_y_adj*start_y_adj',
+                    'switch',
+                    'pass_length',
+                    'assist',
+                    'directness*end_x',
+                    'distance_start',
+                    'distance_end',
+                    'time_difference',
+                    'time_from_chain_start'
+                ]
+                dfr['const'] = 1
+                for var in (PASS_LOG_MODEL_COLUMNS+PASS_LIN_MODEL_COLUMNS):
+                    if var not in dfr:
+                        dfr[var] = dfr.eval(var)
+                X = dfr.copy()
+                Ylog = X.loc[:, X.columns == 'chain_shot']
+                Ylin = X.loc[:, X.columns == 'chain_xG']
+                Xlog = X[PASS_LOG_MODEL_COLUMNS]
+                Xlin = X[PASS_LIN_MODEL_COLUMNS]
+                Ylog_pred = model_pass_log.predict(Xlog).values
+                Ylin_pred = model_pass_lin.predict(Xlin).values
+
+                fpr, tpr, weight = skm.roc_curve(Ylog, Ylog_pred)
+                auc = skm.auc(fpr, tpr)
+                Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
+                score = skm.accuracy_score(Ylog, Ylog_pred_bin)
+
                 col1, col2, col3 = st.columns([1,6,1])
                 with col1:
                     st.write("")
@@ -268,7 +309,8 @@ with st.spinner("Loading"):
                     plt.ylabel("True Positive Rate")
                     plt.title("ROC curve")
                     st.pyplot(fig)
-                    st.write(f"AUC = {auc:.3f}")
+                    st.write(f"AUC : {auc:.3f}")
+                    st.write(f"Score : {(score*100):.3f}%")
 
 
         #if i>=1:
