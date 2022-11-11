@@ -52,7 +52,7 @@ st.set_page_config(page_title='Twelve Analytics Page',
 #def app():
 with st.spinner("Loading"):
 
-    selected_sub_page = st_row_buttons(["Passing Model"])
+    selected_sub_page = st_row_buttons(["Passing Model", "Train a model"])
 
     if selected_sub_page == 'Passing Model':
 
@@ -311,6 +311,23 @@ with st.spinner("Loading"):
                     st.pyplot(fig)
                     st.write(f"AUC : {auc:.3f}")
                     st.write(f"Score : {(score*100):.3f}%")
+    if selected_sub_page == "Train a model":
+        if 'attributes' not in st.session_state:
+            st.session_state.attributes = []
+        model_name = "model.sav"
+        model_name_input = st.text_input("Model Name")
+        if model_name_input:
+            model_name = model_name_input + ".sav"
+        add_attribute = st.text_input("Input Desired Attributes for the model")
+        if add_attribute and add_attribute not in st.session_state.attributes:
+            st.session_state.attributes.append(add_attribute)
+        if st.session_state.attributes:
+            for i in st.session_state.attributes:
+                print(i)
+                temp = st.button(i)
+                if temp:
+                    st.session_state.attributes.remove(i)
+                    temp = False
 
 
         #if i>=1:
