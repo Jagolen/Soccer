@@ -314,20 +314,84 @@ with st.spinner("Loading"):
     if selected_sub_page == "Train a model":
         if 'attributes' not in st.session_state:
             st.session_state.attributes = []
+        if "active_attributes" not in st.session_state:
+            st.session_state.active_attributes = []            
         model_name = "model.sav"
         model_name_input = st.text_input("Model Name")
         if model_name_input:
             model_name = model_name_input + ".sav"
-        add_attribute = st.text_input("Input Desired Attributes for the model")
+        col111, col222 = st.columns([1, 1])
+        with col111:
+            add_attribute = st.text_input("Input Desired Attributes for the model")
+        with col222:
+            combine = st.button("Combine")
+            delete = st.button("Delete")
+            delete_all = st.button("Delete All")
+            square = st.button("Square")
+            default_features = st.button("Default Features")
+
         if add_attribute and add_attribute not in st.session_state.attributes:
             st.session_state.attributes.append(add_attribute)
         if st.session_state.attributes:
             for i in st.session_state.attributes:
-                print(i)
-                temp = st.button(i)
-                if temp:
+                temp = st.checkbox(i)
+                if temp and i not in st.session_state.active_attributes:
+                    st.session_state.active_attributes.append(i)
+                if not temp and i in st.session_state.active_attributes:
+                    st.session_state.active_attributes.remove(i)                    
+            st.write(f"active attributes: {st.session_state.active_attributes}")
+            if delete:
+                for i in st.session_state.active_attributes:
                     st.session_state.attributes.remove(i)
-                    temp = False
+                st.session_state.active_attributes = []
+                st.experimental_rerun()
+            if combine:
+                if len(st.session_state.active_attributes) > 1:
+                    new_feature = st.session_state.active_attributes[0]
+                    for i in range(1, len(st.session_state.active_attributes)):
+                        new_feature = new_feature + "*" + st.session_state.active_attributes[i]
+                    st.session_state.attributes.append(new_feature)
+                    st.experimental_rerun()
+            if square and len(st.session_state.active_attributes) == 1:
+                new_feature = st.session_state.active_attributes[0] + "*" + st.session_state.active_attributes[0]
+                st.session_state.attributes.append(new_feature)
+                st.experimental_rerun()
+
+            if delete_all:
+                st.session_state.active_features = []
+                st.session_state.attributes = []
+                st.experimental_rerun()
+
+        if default_features:
+            st.session_state.attributes = [
+            'const',
+            'start_x', 'end_x',
+            'end_y_adj', 'start_y_adj',
+            'cross*end_x',
+            'through_pass*end_x',
+            'start_x*start_y_adj', 'start_x*start_x',
+            'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
+            'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
+            'start_x*end_x*end_y_adj',
+            'start_x*start_x*end_x',
+            'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
+            'end_y_adj*end_y_adj*start_y_adj',
+            'switch',
+            'pass_length',
+            'assist',
+            'directness*end_x',
+            'distance_start',
+            'distance_end',
+            'time_difference',
+            'time_from_chain_start'
+            ]
+            st.session_state.active_features = []
+            st.experimental_rerun()
+
+        train = st.button("Train the Model")
+        if train:
+            st.write("Training model")
+
 
 
         #if i>=1:
