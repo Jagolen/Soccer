@@ -15,10 +15,10 @@ from pathlib import Path
 path_root = Path(__file__).parents[1]
 print(path_root)
 sys.path.append(str(path_root))
-from opta.epv.ml_builder import __add_features
-from opta.epv.processor import create_base_dataset
-from opta.epv.twelve_xg_model_old import xT_pass, get_EPV_at_location
-from opta.settings import ROOT_DIR
+from epv.ml_builder import __add_features
+from epv.processor import create_base_dataset
+from epv.twelve_xg_model_old import xT_pass, get_EPV_at_location
+from settings import ROOT_DIR
 
 
 #@st.experimental_memo
