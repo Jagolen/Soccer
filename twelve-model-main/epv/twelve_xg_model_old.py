@@ -2,7 +2,7 @@
 import math
 import numpy as np
 
-from opta.settings import ROOT_DIR
+from settings import ROOT_DIR
 
 
 def load_EPV_grid(fname='EPV_grid.csv'):
