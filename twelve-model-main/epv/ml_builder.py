@@ -1,6 +1,6 @@
 import pandas as pd
 
-from opta.epv.processor import distance_to_goal, feature_creation
+from epv.processor import distance_to_goal, feature_creation
 import pickle
 
 # import numexpr
@@ -10,6 +10,8 @@ import statsmodels.api as sm
 from sklearn.metrics import roc_auc_score, roc_curve, mean_squared_error
 from sklearn.model_selection import train_test_split
 from statsmodels.discrete.discrete_model import Logit
+
+from settings import ROOT_DIR
 
 
 def __add_features(df, model_variables):
@@ -159,7 +161,6 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
 # 96 - 2022, 89 - 2021, 86 - 2020
 if __name__ == '__main__':
 
-    DATA_FOLDER = 'D:/Opta Data/'
 
     PASS_LOG_MODEL_COLUMNS = [
         'const',
@@ -198,7 +199,7 @@ if __name__ == '__main__':
         'time_from_chain_start'
     ]
 
-    df = pd.read_parquet(f"{DATA_FOLDER}/processed/pass_xg.parquet")
+    df = pd.read_parquet(f"{ROOT_DIR}/data/pass_xg.parquet")
 
     train_pass_possession_value_model(df,PASS_LOG_MODEL_COLUMNS, PASS_LIN_MODEL_COLUMNS,
                                         target_label_log = 'chain_shot',
