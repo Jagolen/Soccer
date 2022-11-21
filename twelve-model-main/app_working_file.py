@@ -14,7 +14,7 @@ import pandas as pd
 
 from pathlib import Path
 
-from epv.ml_builder import __add_features
+import epv.ml_builder as bld
 from epv.processor import create_base_dataset, feature_creation
 from epv.twelve_xg_model_old import xT_pass, get_EPV_at_location
 from settings import ROOT_DIR
@@ -61,6 +61,7 @@ with st.spinner("Loading"):
 
 		test_old_model = st.selectbox("Select Passing Model", ["Trained model", "xT Positional", 'xT Action Based'])
 
+		#Setting features True or False
 		columns = st.columns(6)
 		assist = columns[0].checkbox('Assist')
 		cross = columns[1].checkbox('Cross')
@@ -109,7 +110,7 @@ with st.spinner("Loading"):
 				'through_pass']] = assist, cross, cutback, switch, through_pass
 			df[['time_from_chain_start', 'time_difference']] = 0, 0
 
-			df = __add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+			df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
 
 			df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 			df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
@@ -206,6 +207,7 @@ with st.spinner("Loading"):
 			st.session_state.active_attributes = []
 
 		#Output name for model
+		model_type = st.selectbox("Select Model Type", ["Linear Regression Model", "Logistic Regression Model"])
 		model_name = "model.sav"
 		model_name_input = st.text_input("Model Name")
 		if model_name_input:
@@ -228,10 +230,10 @@ with st.spinner("Loading"):
 		bool_columns = [x for x, y in df_train.dtypes.items() if y == bool]
 
 		# Get all number columns, some columns like team_id,player_id are ignored as well
-		float_columns = [x for x, y in df_train.dtypes.items() if y != bool and 'id' not in x]
+		float_columns = [x for x, y in df_train.dtypes.items() if y != bool and 'id' not in x and 'type' not in x]
 
 		# Get all string columns, some columns like team_id,player_id are ignored as well
-		categorical_columns = [x for x, y in df_train.dtypes.items() if y != bool and x not in float_columns and 'id' not in x]
+		categorical_columns = [x for x, y in df_train.dtypes.items() if 'type' in x or 'id' in x]
 
 		st.write("Filter True and False attributes")
 		true_attr_col, false_attr_col = st.columns(2)
@@ -250,37 +252,42 @@ with st.spinner("Loading"):
 
 		st.write("Filter float attributes")
 		# Select which attributes should be greated then zero, here can be added slider for each attribute
-		selected_att_to_limit = st.multiselect('Limit these attributes', float_columns, [])
+		selected_att_to_limit_float = st.multiselect('Limit these attributes', float_columns, [])
 
 		#Creates sliders for each attribute
-		if selected_att_to_limit:
-			selected_att_to_limit_with_limit_values = [[x, np.nan, np.nan] for x in selected_att_to_limit]
+		if selected_att_to_limit_float:
+			selected_att_to_limit_with_limit_values = [[x, np.nan, np.nan] for x in selected_att_to_limit_float]
 			for att in selected_att_to_limit_with_limit_values:
-
 				#Min and Max values from data is used as min and max value from sliders
-				attribute_max_value = float(df_train[att[0]].max())
-				attribute_min_value = float(df_train[att[0]].min())
+				if df_train.empty:
+					attribute_max_value = 0
+					attribute_min_value = 0
+				else:
+					attribute_max_value = float(df_train[att[0]].max())
+					attribute_min_value = float(df_train[att[0]].min())
 				attributes_to_limit, attributes_to_limit_slider = st.columns(2)
 				with attributes_to_limit:
 					st.write(att[0])
-				with attributes_to_limit_slider:
 
+				with attributes_to_limit_slider:
 					# Sets the corresponding elements in the selected_att_to_limit_with_limit_values list to the correct elements
 					# NaN is used if the value is not limited, i.e. the element representing 'greater than' will be NaN if only 'less than' is used
 					limiting_factor = st.radio(att[0], index=0, horizontal=True, options=("Less Than", "Greater Than", "Intervall"), label_visibility="collapsed")
+					if attribute_min_value == attribute_max_value:
+						st.write("No data left in Data Frame!")
+					else:
+						if limiting_factor == "Less Than":
+							limiting_factor_value = st.slider(att[0], value=0.0, min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
+							att[1] = limiting_factor_value
 
-					if limiting_factor == "Less Than":
-						limiting_factor_value = st.slider(att[0], value=0.0, min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
-						att[1] = limiting_factor_value
+						if limiting_factor == "Greater Than":
+							limiting_factor_value = st.slider(att[0], value=0.0, min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
+							att[2] = limiting_factor_value
 
-					if limiting_factor == "Greater Than":
-						limiting_factor_value = st.slider(att[0], value=0.0, min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
-						att[2] = limiting_factor_value
-
-					if limiting_factor == "Intervall":
-						limiting_factor_value = st.slider(att[0], value=(attribute_min_value, attribute_max_value), min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
-						att[1] = limiting_factor_value[1]
-						att[2] = limiting_factor_value[0]
+						if limiting_factor == "Intervall":
+							limiting_factor_value = st.slider(att[0], value=(attribute_min_value, attribute_max_value), min_value=attribute_min_value, max_value=attribute_max_value, label_visibility="collapsed")
+							att[1] = limiting_factor_value[1]
+							att[2] = limiting_factor_value[0]
 				
 				# Limits the data based on the selected limits
 				if not np.isnan(att[1]):
@@ -288,15 +295,120 @@ with st.spinner("Loading"):
 				if not np.isnan(att[2]):
 					df_train = df_train[df_train[att[0]] > att[2]]
 
-		#---DOESNT WORK YET
-		#st.write("Filter categorical attributes")
-		# Select which attributes should be greated then zero, here can be added slider for each attribute
-		#selected_att_to_limit = st.multiselect('Limit categories', categorical_columns, [])
-		#---END
+		st.write("Filter categorical attributes")
+		# Select which attribute to limit by catogery
+		selected_att_to_limit_cat = st.multiselect('Limit categories', categorical_columns, [])
+		if selected_att_to_limit_cat:
+			for attlim in selected_att_to_limit_cat:
 
+				# Get list of possible categories to pass to multiselect
+				attribute_values = pd.unique(df_train[attlim])
+				attributes_to_limit_2, limiting_factor_categories = st.columns(2)
+				with attributes_to_limit_2:
+					st.write(attlim)
+				with limiting_factor_categories:
 
-		#for sa in selected_att_to_limit:
-		#	df_train = df_train[df_train[sa] > 0]
+					#This is used to display event names instead of just their id
+					if attlim == "type_id" or attlim == "prev_event_type" or attlim == "chain_start_type_id":
+						#Creating a lookup table for type id consisting of two dictionaries so the values can easily be converted back and forth
+						type_id_lookup_table = {
+							1: 'Pass',
+							2: 'Offside Pass',
+							3: 'Take On',
+							4: 'Foul',
+							5: 'Out',
+							6: 'Corner Awarded',
+							7: 'Tackle',
+							8: 'Interception',
+							10: 'Save Goalkeeper',
+							11: 'Claim Goalkeeper',
+							12: 'Clearance',
+							13: 'Miss',
+							14: 'Post',
+							15: 'Attempt Saved',
+							16: 'Goal',
+							17: 'Card Bookings',
+							18: 'Player off',
+							19: 'Player on',
+							20: 'Player retired',
+							21: 'Player returns',
+							22: 'Player becomes goalkeeper',
+							23: 'Goalkeeper becomes player',
+							24: 'Condition change',
+							25: 'Official change',
+							27: 'Start delay',
+							28: 'End delay',
+							30: 'End',
+							32: 'Start',
+							34: 'Team set up',
+							35: 'Player changed position',
+							36: 'Player changed Jersey',
+							37: 'Collection End',
+							38: 'Temp_Goal',
+							39: 'Temp_Attempt',
+							40: 'Formation change',
+							41: 'Punch',
+							42: 'Good Skill',
+							43: 'Deleted event',
+							44: 'Aerial',
+							45: 'Challenge',
+							47: 'Rescinded card',
+							49: 'Ball recovery',
+							50: 'Dispossessed',
+							51: 'Error',
+							52: 'Keeper pick-up',
+							53: 'Cross not claimed',
+							54: 'Smother',
+							55: 'Offside provoked',
+							56: 'Shield ball opp',
+							57: 'Foul throw-in',
+							58: 'Penalty faced',
+							59: 'Keeper Sweeper',
+							60: 'Chance missed',
+							61: 'Ball touch',
+							63: 'Temp_Save',
+							64: 'Resume',
+							65: 'Contentious referee decision',
+							74: 'Blocked Pass',
+						}
+
+						# The id number is converted to its corresponding string to be shown in the selectbox	
+						type_id_lookup_table_reverse = dict(zip(type_id_lookup_table.values(), type_id_lookup_table.keys()))
+						attribute_values = [type_id_lookup_table[x] for x in attribute_values if x in type_id_lookup_table_reverse.values()]
+						chosen_attribute_values = st.multiselect(attlim, attribute_values, label_visibility="collapsed")
+
+						# Convert the string back to the id value which is used for filtering
+						chosen_attribute_values = [type_id_lookup_table_reverse[x] for x in chosen_attribute_values]
+
+					elif attlim == "tournament_id":
+						#Lookup table for league
+						tournament_id_lookup_table = {
+							"Allsvenskan": 13,
+							"Bundesliga": 3,
+							"Serie A": 20,
+							"Premier League": 12,
+							"La Liga": 21,
+							"Norway": 19,
+							"Denmark": 18,
+						}
+
+						# The id number is converted to its corresponding string to be shown in the selectbox	
+						tournament_id_lookup_table_reverse = dict(zip(tournament_id_lookup_table.values(), tournament_id_lookup_table.keys()))
+						attribute_values = [tournament_id_lookup_table_reverse[x] for x in attribute_values if x in tournament_id_lookup_table.values()]
+						chosen_attribute_values = st.multiselect(attlim, attribute_values, label_visibility="collapsed")
+
+						# Convert the string back to the id value which is used for filtering
+						chosen_attribute_values = [tournament_id_lookup_table[x] for x in chosen_attribute_values]
+
+					else:
+						# Simply using the numerical id	
+						chosen_attribute_values = st.multiselect(attlim, attribute_values, label_visibility="collapsed")
+
+				
+				#Remove the values not chosen from the chosen attribute
+				if chosen_attribute_values:
+					df_train = df_train[df_train[attlim].isin(chosen_attribute_values)]
+				
 
 		# Show dataset descriptions
 		with st.expander("Dataset",False):
@@ -312,7 +424,8 @@ with st.spinner("Loading"):
 			delete = st.button("Delete", help="Deletes selected attributes")
 			delete_all = st.button("Delete All", help="Deletes all attributes")
 			square = st.button("Square", help="Creates the square of the attribute, i.e. the attribute multiplied with itself, as a new attribute. Requires that only one attribute is selected")
-			default_features = st.button("Default Features", help="Creates the default attributes")
+			default_features_log = st.button("Default Features (Logistic Model)", help="Creates the default attributes for the Logistic Model")
+			default_features_lin = st.button("Default Features (Linear Model)", help="Creates the default attributes for the Linear Model")
 
 		# Adds the chosen attributes to the attributes list
 		if add_attribute and add_attribute not in st.session_state.attributes:
@@ -350,7 +463,7 @@ with st.spinner("Loading"):
 				st.session_state.attributes = []
 				st.experimental_rerun()
 
-		if default_features:
+		if default_features_lin:
 			st.session_state.attributes = [
 				'const',
 				'start_x', 'end_x',
@@ -376,16 +489,33 @@ with st.spinner("Loading"):
 			st.session_state.active_features = []
 			st.experimental_rerun()
 
+		if default_features_log:
+			st.session_state.attributes = [
+				'const',
+				'start_x', 'end_x',
+				'end_y_adj', 'start_y_adj',
+				'start_x*start_y_adj', 'start_x*start_x',
+				'end_x*end_y_adj', 'end_x*end_x', 'end_x*end_x*end_x',
+				'start_x*end_x', 'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
+				'start_x*end_x*end_y_adj',
+				'start_x*start_x*end_x',
+				'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
+				'end_y_adj*end_y_adj*start_y_adj',
+			]
+			st.session_state.active_features = []
+			st.experimental_rerun()
+
 		# Feature creation
 		df_train = feature_creation(df_train)
 		df_train["const"] = 1
 
 		# Evaluate combinations of features
-		df_train = __add_features(df_train, st.session_state.attributes)
+		df_train = bld.__add_features(df_train, st.session_state.attributes)
 
 		# Use only selected features
 		df_train = df_train[st.session_state.attributes]
 
+		#Replaces NaN values with zeroes
 		df_train.fillna(0)
 
 		#Creating Correlation Matrix if any feature is chosen
@@ -403,24 +533,30 @@ with st.spinner("Loading"):
 				#Create the Correlation Matrix using a heatmap
 				fig, ax = plt.subplots()
 				c_matrix_heatmap = sb.heatmap(correlation_matrix,
-				xticklabels=True,
-				yticklabels=True, 
-				square = True, 
-				cmap = "coolwarm", 
+				xticklabels=True, # Makes all the x-labels visible
+				yticklabels=True, # Makes all the y-labels visible
+				square = True, # Creates a square heatmap (the boxes will be squares rather than rectangles)
+				cmap = "coolwarm", # Blue-to-Red colormap
 				mask = triangle_mask, 
-				linewidths = 0.5,
+				linewidths = 0.5, # Separates the heatmap boxes slightly
 				vmin = -1,
 				vmax = 1,
-				annot=True,
-				annot_kws= {"size": 60/len(correlation_matrix.columns)})
+				annot=True, # Shows the values inside the boxes
+				annot_kws= {"size": 60/len(correlation_matrix.columns)}) # Scales the text inside the heatmap boxes based on how many attributes are chosen
+
 				plt.rc("xtick", labelsize=6)
 				plt.rc("ytick", labelsize=6)
 				plt.title("Correlation Matrix")
 				st.pyplot(fig)
 
+		# This will activate the actual training
 		train = st.button("Train the Model")
 		if train:
-			st.write("Training model")
+			if model_type == "Linear Regression Model":
+				pass
+
+			if model_type == "Logistic Regression Model":
+				pass
 	
 	if selected_sub_page == "Test a model":
 		# Load Models
@@ -517,7 +653,7 @@ with st.spinner("Loading"):
 		dfr['const'] = 1
 
 		# Evaluate combinations of features
-		dfr = __add_features(dfr, PASS_LOG_MODEL_COLUMNS + PASS_LIN_MODEL_COLUMNS)
+		dfr = bld.__add_features(dfr, PASS_LOG_MODEL_COLUMNS + PASS_LIN_MODEL_COLUMNS)
 		
 		#Prediction
 		X = dfr.copy()
@@ -536,15 +672,28 @@ with st.spinner("Loading"):
 		rmse = skm.mean_squared_error(Ylin, Ylin_pred)
 		rmse = np.sqrt(rmse)
 		
-		#Plot result
-		fig = plt.figure()
-		plt.plot(fpr, tpr, color="orange", label="ROC Curve")
-		plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
-		plt.legend()
-		plt.xlabel("False Positive Rate")
-		plt.ylabel("True Positive Rate")
-		plt.title("ROC curve")
-		st.pyplot(fig)
+		#Plot result, columns scales the result down
+		roc1, roc2, roc3 = st.columns([2, 5, 2])
+		with roc1:
+			st.write("")
+		
+		with roc2:
+			fig = plt.figure()
+			plt.plot(fpr, tpr, color="orange", label="ROC Curve")
+			plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
+			plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+			plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+			plt.grid(True)
+			plt.legend()
+			plt.xlabel("False Positive Rate")
+			plt.ylabel("True Positive Rate")
+			plt.title("ROC curve")
+			st.pyplot(fig)
+		
+		with roc3:
+			st.write("")
+
+		#Write out the stats with 3 decimals
 		st.write(f"AUC : {auc:.3f}")
 		st.write(f"Score : {(score * 100):.3f}%")
 		st.write(f"RMSE : {rmse:.3f}")
