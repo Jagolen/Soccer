@@ -205,7 +205,10 @@ with st.spinner("Loading"):
 			st.session_state.attributes = []
 		if "active_attributes" not in st.session_state:
 			st.session_state.active_attributes = []
+		if "train_the_model" not in st.session_state:
+			st.session_state.train_the_model = False
 
+		st.header("Model information")
 		#Output name for model
 		model_type = st.selectbox("Select Model Type", ["Linear Regression Model", "Logistic Regression Model"])
 		model_name = "model.sav"
@@ -213,12 +216,12 @@ with st.spinner("Loading"):
 		if model_name_input:
 			model_name = model_name_input + ".sav"
 
-		st.write("**Filter data by attributes**")
+		st.header("Filter data by attributes")
 		# Load Dataset
 		df_train = load_dataset()
 
 		# Get all columns
-		all_columns = [x for x, y in df_train.dtypes.items() if 'id' not in x]
+		all_columns = [x for x, y in df_train.dtypes.items()]
 
 		# Gives a clear box at the start
 		all_columns.insert(0, "")
@@ -235,7 +238,7 @@ with st.spinner("Loading"):
 		# Get all string columns, some columns like team_id,player_id are ignored as well
 		categorical_columns = [x for x, y in df_train.dtypes.items() if 'type' in x or 'id' in x]
 
-		st.write("Filter True and False attributes")
+		st.subheader("Filter True and False attributes")
 		true_attr_col, false_attr_col = st.columns(2)
 
 		with true_attr_col:
@@ -250,7 +253,7 @@ with st.spinner("Loading"):
 			for sa in selected_att_f:
 				df_train = df_train[df_train[sa] == False]
 
-		st.write("Filter float attributes")
+		st.subheader("Filter float attributes")
 		# Select which attributes should be greated then zero, here can be added slider for each attribute
 		selected_att_to_limit_float = st.multiselect('Limit these attributes', float_columns, [])
 
@@ -295,7 +298,7 @@ with st.spinner("Loading"):
 				if not np.isnan(att[2]):
 					df_train = df_train[df_train[att[0]] > att[2]]
 
-		st.write("Filter categorical attributes")
+		st.subheader("Filter categorical attributes")
 		# Select which attribute to limit by catogery
 		selected_att_to_limit_cat = st.multiselect('Limit categories', categorical_columns, [])
 		if selected_att_to_limit_cat:
@@ -408,12 +411,29 @@ with st.spinner("Loading"):
 				#Remove the values not chosen from the chosen attribute
 				if chosen_attribute_values:
 					df_train = df_train[df_train[attlim].isin(chosen_attribute_values)]
+		
+		st.subheader("Limit so that two features are equal")
+		limit_features_based_on_equality = st.multiselect("Limit these features so that only data when they are equal to another feature is saved", all_columns)
+		if limit_features_based_on_equality:
+			for limeq in limit_features_based_on_equality:
+				eq_limit1, eq_limit2 = st.columns(2)
+				with eq_limit1:
+					st.write(limeq)
+				with eq_limit2:
+					limit_when_equal = st.selectbox(limeq, all_columns, label_visibility="collapsed")
 				
+				#Limit features
+				if limit_when_equal:
+					df_train = df_train[df_train[limeq] == df_train[limit_when_equal]]
 
 		# Show dataset descriptions
 		with st.expander("Dataset",False):
 			st.write(df_train.shape)
 			st.dataframe(df_train.describe())
+
+		#Target attribute for the model
+		st.header("Target attribute and desired attributes")
+		target_attribute = st.selectbox("Select target attribute for the model", all_columns)
 
 		#Let the user select attributes
 		col111, col222 = st.columns([1, 1])
@@ -512,8 +532,14 @@ with st.spinner("Loading"):
 		# Evaluate combinations of features
 		df_train = bld.__add_features(df_train, st.session_state.attributes)
 
-		# Use only selected features
-		df_train = df_train[st.session_state.attributes]
+		#Create new list and include target attribute
+		chosen_attributes_final = [x for x in st.session_state.attributes]
+
+		if target_attribute:
+			chosen_attributes_final.append(target_attribute)
+
+		# Use only selected features and target attribute
+		df_train = df_train[chosen_attributes_final]
 
 		#Replaces NaN values with zeroes
 		df_train.fillna(0)
@@ -550,13 +576,42 @@ with st.spinner("Loading"):
 				st.pyplot(fig)
 
 		# This will activate the actual training
+		st.header("Training")
 		train = st.button("Train the Model")
 		if train:
-			if model_type == "Linear Regression Model":
-				pass
+			st.session_state.train_the_model = True
+		
+		if st.session_state.train_the_model:
+			if target_attribute:
+				if model_type == "Linear Regression Model":
+					lin_model, x_test, y_test = bld.__create_linear_model(df_train, target_attribute, st.session_state.attributes)
+					st.write("Model has been trained")
+					show_train_stats = st.checkbox("Show statistics?")
+					if show_train_stats:
+						st.write(lin_model.summary2())
+					save_an_output_file = st.checkbox("Save model to disk?")
+					if save_an_output_file:
+						output_name = f"{ROOT_DIR}/models/{model_name}"
+						lin_model.save(output_name, remove_data=True)
+						st.write(f"Model has been saved at {output_name}")
+					
+					
 
-			if model_type == "Logistic Regression Model":
-				pass
+
+				if model_type == "Logistic Regression Model":
+					#Target label
+					df_train[target_attribute] = df_train[target_attribute].astype(bool)
+					log_model, x_test, y_test = bld.__create_logistic_model(df_train, target_attribute, st.session_state.attributes)
+					show_train_stats = st.checkbox("Show statistics?")
+					if show_train_stats:
+						st.write(log_model.summary2())
+					save_an_output_file = st.checkbox("Save model to disk?")
+					if save_an_output_file:
+						output_name = f"{ROOT_DIR}/models/{model_name}"
+						lin_model.save(output_name, remove_data=True)
+						st.write(f"Model has been saved at {output_name}")
+			else:
+				st.write("Error: No target attribute")
 	
 	if selected_sub_page == "Test a model":
 		# Load Models
