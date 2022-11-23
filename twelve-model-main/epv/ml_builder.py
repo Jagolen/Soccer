@@ -53,24 +53,24 @@ def __create_Neural_network_model(df, target_label, model_variables):
 
     hidden_layer_sizes = [(200,75,25,10,2)]
     learning_rate = ['constant']
-    activation = ['identity', 'logistic', 'tanh', 'relu']
+    activation = ['tanh']
 
     param_grid = dict(hidden_layer_sizes=hidden_layer_sizes,learning_rate=learning_rate,activation = activation)
     #grid = MLPRegressor(random_state=3, max_iter=5000,hidden_layer_sizes = (200,75,25,10,2),learning_rate = 'constant',learning_rate_init = 0.0001)
-    Model = MLPRegressor(random_state=3, learning_rate_init = 0.001)
-    grid = GridSearchCV(estimator=Model, param_grid=param_grid,cv=StratifiedKFold(n_splits=3), scoring = 'roc_auc', verbose=3,n_jobs=-1)
+    Model = MLPRegressor(random_state=1,max_iter=5000, learning_rate_init = 0.001,solver='adam')
+    grid = GridSearchCV(estimator=Model, param_grid=param_grid,cv=StratifiedKFold(n_splits=3), scoring = 'roc_auc', verbose=10,n_jobs=-1)
     
     xG_Model = grid.fit(X, Y)
 
     print("Best: {0}, using {1}".format(xG_Model.best_score_, xG_Model.best_params_))
     
-    """
+    
     #Evaluate Model with K-Fold Cross validation
     from sklearn.model_selection import StratifiedKFold,cross_val_score
     cv = StratifiedKFold(n_splits=3)
     scores = cross_val_score(estimator = grid, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
     print('Result from cross valuation:',scores)
-    """
+    
 
     Y_Test_Pred = xG_Model.predict(X_test)
     AUC = roc_auc_score(Y_test, Y_Test_Pred)
@@ -106,13 +106,13 @@ def __create_logistic_model(df, target_label, model_variables):
 
     from sklearn.linear_model import LogisticRegression
     Model = LogisticRegression(penalty='none',max_iter=10000,solver='lbfgs')
-    """
+    
     #Evaluate Model with K-Fold Cross validation
     from sklearn.model_selection import StratifiedKFold,cross_val_score
     cv = StratifiedKFold(n_splits=3)
     scores = cross_val_score(estimator = Model, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
     print('Result from cross valuation:',scores)
-    """
+    
     xG_Model = Model.fit(X_train,Y_train)
 
     Y_Test_Pred = xG_Model.predict_proba(X_test)[:,1]
@@ -122,6 +122,10 @@ def __create_logistic_model(df, target_label, model_variables):
     return xG_Model, X_test, Y_test
 
 def __create_XGB_model(df, target_label, model_variables):
+
+    from sklearn.model_selection import GridSearchCV
+    from xgboost import XGBRegressor
+    from sklearn.model_selection import StratifiedKFold,cross_val_score
 
     # Create Train/Test Data
     X = df.copy()
@@ -134,22 +138,27 @@ def __create_XGB_model(df, target_label, model_variables):
 
     Y = X[target_label].values
     X = X[model_variables].values
-    
-    # from sklearn.linear_model import LogisticRegression
-    # clf = LogisticRegression(random_state=0).fit(X_train, Y_train)
-    from xgboost import XGBRegressor
 
-    Model= XGBRegressor(n_estimators = 100, max_depth=4, random_state = 123)
+    n_estimators = [50,100,200]
+    max_depth=[4]
+    max_leaves = [0,5,30]
+    learning_rate = [0.3, 0.5]
+
+
+    param_grid = dict(n_estimators=n_estimators,max_depth=max_depth,max_leaves=max_leaves,learning_rate=learning_rate)
+    Model= XGBRegressor(random_state = 123,n_jobs=-1)
+    grid = GridSearchCV(estimator=Model, param_grid=param_grid,cv=StratifiedKFold(n_splits=3), scoring = 'roc_auc', verbose=10,n_jobs=-1)
 
     #Evaluate Model with K-Fold Cross validation
-    from sklearn.model_selection import StratifiedKFold,cross_val_score
     cv = StratifiedKFold(n_splits=3)
-    scores = cross_val_score(estimator = Model, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
+    scores = cross_val_score(estimator = grid, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
     print('Result for XGBoost from cross valuation:',scores)
 
     # Split Data into Test & Training Sets
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state = 123,stratify = Y)
-    xG_Model = Model.fit(X_train,Y_train)
+    xG_Model = grid.fit(X_train,Y_train)
+
+    print("Best: {0}, using {1}".format(xG_Model.best_score_, xG_Model.best_params_))
 
     Y_Test_Pred = xG_Model.predict(X_test)
     print(Y_Test_Pred)
@@ -223,11 +232,11 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
 
     ### XGBOOST MODEL
     # Train Model
-    #pass_log_model, X_test, Y_test = __create_XGB_model(df, target_label_log, log_columns)
+    pass_log_model, X_test, Y_test = __create_XGB_model(df, target_label_log, log_columns)
 
     ### Neural network MODEL
     # Train Model
-    pass_log_model, X_test, Y_test = __create_Neural_network_model(df, target_label_log, log_columns)
+    #pass_log_model, X_test, Y_test = __create_Neural_network_model(df, target_label_log, log_columns)
 
     # Summary of Model
     #print('Summary of xG Model:')
@@ -267,7 +276,9 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
     # Y_Test_Pred = xgblinear.predict(X_test[PASS_LIN_MODEL_COLUMNS])
     # RMSE = sqrt(mean_squared_error(Y_test, Y_Test_Pred))
     # print('RMSE XGBoost', RMSE)
-    out_lin_model_name = r'C:\Users\Markus\Documents\Projekt_ML_Football\opta\models\EPV_Lin_Model.sav'
+    #out_lin_model_name = r'C:\Users\Markus\Documents\Projekt_ML_Football\opta\models\EPV_Lin_Model.sav'
+    out_lin_model_name = r'D:\ML_Football_project\twelve-model-main\models\EPV_Lin_Model.sav'
+    
 
     pass_lin_model.save(out_lin_model_name, remove_data=True)
 
@@ -282,7 +293,7 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
 # 96 - 2022, 89 - 2021, 86 - 2020
 if __name__ == '__main__':
 
-    DATA_FOLDER = 'C:/Users/Markus/Documents/Projekt_ML_Football/opta/data'
+    DATA_FOLDER = 'D:/ML_Football_project/twelve-model-main/data'
 
     PASS_LOG_MODEL_COLUMNS = [
         'const',
@@ -327,5 +338,8 @@ if __name__ == '__main__':
                                         target_label_log = 'chain_shot',
                                         target_label_lin = 'chain_xG'
                                       )
+
+
+
 
 
