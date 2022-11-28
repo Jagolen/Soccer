@@ -2,6 +2,7 @@
 import pickle
 import seaborn as sb
 import sys
+import os
 from io import BytesIO
 import streamlit as st
 import sklearn.metrics as skm
@@ -616,6 +617,48 @@ with st.spinner("Loading"):
 				st.write("Error: No target attribute")
 	
 	if selected_sub_page == "Test a model":
+
+		how_many_models_test = st.selectbox("Test one model or compare two models?", ["Test a model", "Compare two models"])
+
+		if how_many_models_test == "Test a model":
+
+			#Create list of available models
+			model_names = []
+			for files in os.listdir(f"{ROOT_DIR}/models"):
+				if files.endswith(".sav"):
+					model_names.append(files)
+			
+			load_log_model, load_lin_model = st.columns(2)
+
+			with load_log_model:
+				selected_log_model = st.selectbox("Select Logistic Model", model_names)
+			
+			with load_lin_model:
+				selected_lin_model = st.selectbox("Select Linear Model", model_names)
+			
+			if selected_lin_model and selected_log_model:
+
+				#Load log & lin models
+				log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
+				lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
+
+			st.header("Statistics")
+
+			st.subheader("Logistic Model")
+			#st.write(log_model.summary2())
+
+			stat_df_log_main = pd.DataFrame()
+			stat_df_log_main["Metric"] = ["Model Type", "Output Variable", "Pseudo R^2", "Log-Likelihood", "LLR P-value", "Akaike Information Criterion"]
+			stat_df_log_main["Value"] = [log_model.model.__class__.__name__, log_model.model.endog_names, log_model.prsquared, log_model.llf, log_model.llr_pvalue, log_model.aic]
+
+
+
+			st.table(stat_df_log_main)
+
+		
+		if how_many_models_test == "Compare two models":
+			pass
+
 		# Load Models
 		model_pass_log, model_pass_lin, = get_pass_model()
 
@@ -729,7 +772,7 @@ with st.spinner("Loading"):
 		rmse = skm.mean_squared_error(Ylin, Ylin_pred)
 		rmse = np.sqrt(rmse)
 		
-		#Plot result, columns scales the result down
+		#Plot result, columns scales the result down in the streamlit window
 		roc1, roc2, roc3 = st.columns([2, 5, 2])
 		with roc1:
 			st.write("")
@@ -754,3 +797,12 @@ with st.spinner("Loading"):
 		st.write(f"AUC : {auc:.3f}")
 		st.write(f"Score : {(score * 100):.3f}%")
 		st.write(f"RMSE : {rmse:.3f}")
+
+		# **TESTING**
+		log_names = model_pass_log.model.exog_names
+		st.write(f"Log Names = {log_names}")
+		st.write(model_pass_log.summary2())
+
+		# Makes a table of the stats from the model, such as the coefficient values, standard error, confidence interval, and p-value
+
+
