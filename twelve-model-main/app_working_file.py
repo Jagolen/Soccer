@@ -620,14 +620,13 @@ with st.spinner("Loading"):
 
 		how_many_models_test = st.selectbox("Test one model or compare two models?", ["Test a model", "Compare two models"])
 
-		if how_many_models_test == "Test a model":
+		#Create list of available models
+		model_names = []
+		for files in os.listdir(f"{ROOT_DIR}/models"):
+			if files.endswith(".sav"):
+				model_names.append(files)
 
-			#Create list of available models
-			model_names = []
-			for files in os.listdir(f"{ROOT_DIR}/models"):
-				if files.endswith(".sav"):
-					model_names.append(files)
-			
+		if how_many_models_test == "Test a model":
 			load_log_model, load_lin_model = st.columns(2)
 
 			with load_log_model:
@@ -635,32 +634,153 @@ with st.spinner("Loading"):
 			
 			with load_lin_model:
 				selected_lin_model = st.selectbox("Select Linear Model", model_names)
-			
-			if selected_lin_model and selected_log_model:
 
-				#Load log & lin models
-				log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
-				lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
+			#Load log & lin models
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
 
 			st.header("Statistics")
 
 			st.subheader("Logistic Model")
-			#st.write(log_model.summary2())
+			st.write("The model as a whole")
 
 			stat_df_log_main = pd.DataFrame()
 			stat_df_log_main["Metric"] = ["Model Type", "Output Variable", "Pseudo R^2", "Log-Likelihood", "LLR P-value", "Akaike Information Criterion"]
 			stat_df_log_main["Value"] = [log_model.model.__class__.__name__, log_model.model.endog_names, log_model.prsquared, log_model.llf, log_model.llr_pvalue, log_model.aic]
-
-
-
 			st.table(stat_df_log_main)
 
-		
+			st.write("Coefficients")
+
+			stat_df_log_coef = pd.DataFrame()
+			#stat_df_log_coef["Coefficient"] = log_model.exog_names
+			stat_df_log_coef["Coefficient value"] = log_model.params
+			stat_df_log_coef["Std Error"] = log_model.bse
+			stat_df_log_coef["z-value"] = log_model.tvalues
+			stat_df_log_coef["P-value (P>|z|)"] = log_model.pvalues
+			stat_df_log_coef["Confidence Interval Lower Limit"] = log_model.conf_int()[0]
+			stat_df_log_coef["Confidence Interval Upper Limit"] = log_model.conf_int()[1]
+			st.table(stat_df_log_coef)
+
+			st.subheader("Linear Model")
+			st.write("The model as a whole")
+			st.write(dir(lin_model))
+
+			stat_df_lin_main = pd.DataFrame()
+			stat_df_lin_main["Metric"] = ["Model Type", "Output Variable", "R^2", "Log-Likelihood", "F-statistic", "P-value (F-statistic)", "Akaike Information Criterion"]
+			stat_df_lin_main["Value"] = [lin_model.model.__class__.__name__, lin_model.model.endog_names, lin_model.rsquared, lin_model.llf, lin_model.fvalue, lin_model.f_pvalue, lin_model.aic]
+			st.table(stat_df_lin_main)
+
+			st.write("Coefficients")
+
+			stat_df_lin_coef = pd.DataFrame()
+			stat_df_lin_coef["Coefficient value"] = lin_model.params
+			stat_df_lin_coef["Std Error"] = lin_model.bse
+			stat_df_lin_coef["t-value"] = lin_model.tvalues
+			stat_df_lin_coef["P-value (P>|t|)"] = lin_model.pvalues
+			stat_df_lin_coef["Confidence Interval Lower Limit"] = lin_model.conf_int()[0]
+			stat_df_lin_coef["Confidence Interval Upper Limit"] = lin_model.conf_int()[1]
+			st.table(stat_df_lin_coef)
+
 		if how_many_models_test == "Compare two models":
-			pass
+			load_log_model, load_lin_model = st.columns(2)
+			with load_log_model:
+				selected_log_model = st.selectbox("Select First Logistic Model", model_names)
+				selected_log_model2 = st.selectbox("Select Second Logistic Model", model_names)		
+			with load_lin_model:
+				selected_lin_model = st.selectbox("Select First Linear Model", model_names)
+				selected_lin_model2 = st.selectbox("Select Second Linear Model", model_names)
+
+			#Load log & lin models
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
+			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model2}", 'rb'))
+			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model2}", 'rb'))
+
+			st.header("Statistics")
+
+			st.subheader("Logistic Model")
+			log_stats1, log_stats2 = st.columns(2)
+			with log_stats1:
+				st.write("**Model 1**")
+				st.write("The model as a whole")
+				stat_df_log_main = pd.DataFrame()
+				stat_df_log_main["Metric"] = ["Model Type", "Output Variable", "Pseudo R^2", "Log-Likelihood", "LLR P-value", "Akaike Information Criterion"]
+				stat_df_log_main["Value"] = [log_model.model.__class__.__name__, log_model.model.endog_names, log_model.prsquared, log_model.llf, log_model.llr_pvalue, log_model.aic]
+				st.table(stat_df_log_main)
+
+				st.write("Coefficients")
+				stat_df_log_coef = pd.DataFrame()
+				#stat_df_log_coef["Coefficient"] = log_model.exog_names
+				stat_df_log_coef["Coefficient value"] = log_model.params
+				stat_df_log_coef["Std Error"] = log_model.bse
+				stat_df_log_coef["z-value"] = log_model.tvalues
+				stat_df_log_coef["P-value (P>|z|)"] = log_model.pvalues
+				stat_df_log_coef["Confidence Interval Lower Limit"] = log_model.conf_int()[0]
+				stat_df_log_coef["Confidence Interval Upper Limit"] = log_model.conf_int()[1]
+				st.table(stat_df_log_coef)
+			
+			with log_stats2:
+				st.write("**Model 2**")
+				st.write("The model as a whole")
+				stat_df_log_main2 = pd.DataFrame()
+				stat_df_log_main2["Metric"] = ["Model Type", "Output Variable", "Pseudo R^2", "Log-Likelihood", "LLR P-value", "Akaike Information Criterion"]
+				stat_df_log_main2["Value"] = [log_model2.model.__class__.__name__, log_model2.model.endog_names, log_model2.prsquared, log_model2.llf, log_model2.llr_pvalue, log_model2.aic]
+				st.table(stat_df_log_main2)
+
+				st.write("Coefficients")
+				stat_df_log_coef2 = pd.DataFrame()
+				#stat_df_log_coef["Coefficient"] = log_model.exog_names
+				stat_df_log_coef2["Coefficient value"] = log_model2.params
+				stat_df_log_coef2["Std Error"] = log_model2.bse
+				stat_df_log_coef2["z-value"] = log_model2.tvalues
+				stat_df_log_coef2["P-value (P>|z|)"] = log_model2.pvalues
+				stat_df_log_coef2["Confidence Interval Lower Limit"] = log_model2.conf_int()[0]
+				stat_df_log_coef2["Confidence Interval Upper Limit"] = log_model2.conf_int()[1]
+				st.table(stat_df_log_coef2)				
+
+			st.subheader("Linear Model")
+
+			lin_stats, lin_stats2 = st.columns(2)
+			with lin_stats:
+				stat_df_lin_main = pd.DataFrame()
+				stat_df_lin_main["Metric"] = ["Model Type", "Output Variable", "R^2", "Log-Likelihood", "F-statistic", "P-value (F-statistic)", "Akaike Information Criterion"]
+				stat_df_lin_main["Value"] = [lin_model.model.__class__.__name__, lin_model.model.endog_names, lin_model.rsquared, lin_model.llf, lin_model.fvalue, lin_model.f_pvalue, lin_model.aic]
+				st.table(stat_df_lin_main)
+
+				st.write("Coefficients")
+
+				stat_df_lin_coef = pd.DataFrame()
+				stat_df_lin_coef["Coefficient value"] = lin_model.params
+				stat_df_lin_coef["Std Error"] = lin_model.bse
+				stat_df_lin_coef["t-value"] = lin_model.tvalues
+				stat_df_lin_coef["P-value (P>|t|)"] = lin_model.pvalues
+				stat_df_lin_coef["Confidence Interval Lower Limit"] = lin_model.conf_int()[0]
+				stat_df_lin_coef["Confidence Interval Upper Limit"] = lin_model.conf_int()[1]
+				st.table(stat_df_lin_coef)
+			
+			with lin_stats2:
+				stat_df_lin_main2 = pd.DataFrame()
+				stat_df_lin_main2["Metric"] = ["Model Type", "Output Variable", "R^2", "Log-Likelihood", "F-statistic", "P-value (F-statistic)", "Akaike Information Criterion"]
+				stat_df_lin_main2["Value"] = [lin_model2.model.__class__.__name__, lin_model2.model.endog_names, lin_model2.rsquared, lin_model2.llf, lin_model2.fvalue, lin_model2.f_pvalue, lin_model2.aic]
+				st.table(stat_df_lin_main2)
+
+				st.write("Coefficients")
+
+				stat_df_lin_coef2 = pd.DataFrame()
+				stat_df_lin_coef2["Coefficient value"] = lin_model2.params
+				stat_df_lin_coef2["Std Error"] = lin_model2.bse
+				stat_df_lin_coef2["t-value"] = lin_model2.tvalues
+				stat_df_lin_coef2["P-value (P>|t|)"] = lin_model2.pvalues
+				stat_df_lin_coef2["Confidence Interval Lower Limit"] = lin_model2.conf_int()[0]
+				stat_df_lin_coef2["Confidence Interval Upper Limit"] = lin_model2.conf_int()[1]
+				st.table(stat_df_lin_coef2)
+
+
+
+
 
 		# Load Models
-		model_pass_log, model_pass_lin, = get_pass_model()
+		#model_pass_log, model_pass_lin, = get_pass_model()
 
 		# For ROC/SCORE
 		dfr = pd.read_parquet(f"{ROOT_DIR}/data/possessions_xg.parquet")
@@ -761,48 +881,95 @@ with st.spinner("Loading"):
 		Ylin = X.loc[:, X.columns == 'chain_xG']
 		Xlog = X[PASS_LOG_MODEL_COLUMNS]
 		Xlin = X[PASS_LIN_MODEL_COLUMNS]
-		Ylog_pred = model_pass_log.predict(Xlog).values
-		Ylin_pred = model_pass_lin.predict(Xlin).values
+		Ylog_pred = log_model.predict(Xlog).values
+		Ylin_pred = lin_model.predict(Xlin).values
 
-		#ROC Curve, score and RMSE
-		fpr, tpr, weight = skm.roc_curve(Ylog, Ylog_pred)
-		auc = skm.auc(fpr, tpr)
-		Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
-		score = skm.accuracy_score(Ylog, Ylog_pred_bin)
-		rmse = skm.mean_squared_error(Ylin, Ylin_pred)
-		rmse = np.sqrt(rmse)
-		
-		#Plot result, columns scales the result down in the streamlit window
-		roc1, roc2, roc3 = st.columns([2, 5, 2])
-		with roc1:
-			st.write("")
-		
-		with roc2:
-			fig = plt.figure()
-			plt.plot(fpr, tpr, color="orange", label="ROC Curve")
-			plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
-			plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
-			plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
-			plt.grid(True)
-			plt.legend()
-			plt.xlabel("False Positive Rate")
-			plt.ylabel("True Positive Rate")
-			plt.title("ROC curve")
-			st.pyplot(fig)
-		
-		with roc3:
-			st.write("")
+		if how_many_models_test == "Test a model":
 
-		#Write out the stats with 3 decimals
-		st.write(f"AUC : {auc:.3f}")
-		st.write(f"Score : {(score * 100):.3f}%")
-		st.write(f"RMSE : {rmse:.3f}")
+			#ROC Curve, score and RMSE
+			fpr, tpr, weight = skm.roc_curve(Ylog, Ylog_pred)
+			auc = skm.auc(fpr, tpr)
+			Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
+			score = skm.accuracy_score(Ylog, Ylog_pred_bin)
+			rmse = skm.mean_squared_error(Ylin, Ylin_pred)
+			rmse = np.sqrt(rmse)
+			
+			#Plot result, columns scales the result down in the streamlit window
+			roc1, roc2, roc3 = st.columns([2, 5, 2])
+			with roc1:
+				st.write("")
+			
+			with roc2:
+				fig = plt.figure()
+				plt.plot(fpr, tpr, color="orange", label="ROC Curve")
+				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.grid(True)
+				plt.legend()
+				plt.xlabel("False Positive Rate")
+				plt.ylabel("True Positive Rate")
+				plt.title("ROC curve")
+				st.pyplot(fig)
+			
+			with roc3:
+				st.write("")
 
-		# **TESTING**
-		log_names = model_pass_log.model.exog_names
-		st.write(f"Log Names = {log_names}")
-		st.write(model_pass_log.summary2())
+			#Write out the stats with 3 decimals
+			st.write(f"AUC : {auc:.3f}")
+			st.write(f"Score : {(score * 100):.3f}%")
+			st.write(f"RMSE : {rmse:.3f}")
 
-		# Makes a table of the stats from the model, such as the coefficient values, standard error, confidence interval, and p-value
+		if how_many_models_test == "Compare two models":
+
+			Ylog_pred2 = log_model2.predict(Xlog).values
+			Ylin_pred2 = lin_model2.predict(Xlin).values
+
+			#ROC Curve, score and RMSE
+			fpr, tpr, weight = skm.roc_curve(Ylog, Ylog_pred)
+			fpr2, tpr2, weight2 = skm.roc_curve(Ylog, Ylog_pred2)
+			auc = skm.auc(fpr, tpr)
+			auc2 = skm.auc(fpr2, tpr2)
+			Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
+			Ylog_pred_bin2 = [round(elements) for elements in Ylog_pred2]
+			score = skm.accuracy_score(Ylog, Ylog_pred_bin)
+			score2 = skm.accuracy_score(Ylog, Ylog_pred_bin2)
+			rmse = skm.mean_squared_error(Ylin, Ylin_pred)
+			rmse = np.sqrt(rmse)
+			rmse2 = skm.mean_squared_error(Ylin, Ylin_pred2)
+			rmse2 = np.sqrt(rmse2)
+			
+			#Plot result, columns scales the result down in the streamlit window
+			roc1, roc2 = st.columns(2)
+			with roc1:
+				fig = plt.figure()
+				plt.plot(fpr, tpr, color="orange", label="ROC Curve")
+				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.grid(True)
+				plt.legend()
+				plt.xlabel("False Positive Rate")
+				plt.ylabel("True Positive Rate")
+				plt.title("ROC curve (Model 1)")
+				st.pyplot(fig)
+			
+			with roc2:
+				fig = plt.figure()
+				plt.plot(fpr2, tpr2, color="orange", label="ROC Curve")
+				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.grid(True)
+				plt.legend()
+				plt.xlabel("False Positive Rate")
+				plt.ylabel("True Positive Rate")
+				plt.title("ROC curve (Model 2)")
+				st.pyplot(fig)
+
+			#Write out the stats with 3 decimals
+			st.write(f"AUC) : {auc:.3f} (Model 1), {auc2:.3f} (Model 2)")
+			st.write(f"Score : {(score * 100):.3f}% (Model 1), {(score2 * 100):.3f}% (Model 2)")
+			st.write(f"RMSE : {rmse:.3f} (Model 1), {rmse2:.3f} (Model 2)")
 
 
