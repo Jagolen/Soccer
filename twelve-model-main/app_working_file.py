@@ -62,20 +62,72 @@ with st.spinner("Loading"):
 
 		test_old_model = st.selectbox("Select Passing Model", ["Trained model", "xT Positional", 'xT Action Based'])
 
-		#Setting features True or False
-		columns = st.columns(6)
-		assist = columns[0].checkbox('Assist')
-		cross = columns[1].checkbox('Cross')
-		cutback = columns[2].checkbox('Cutback')
-		switch = columns[3].checkbox('Switch')
-		through_pass = columns[4].checkbox('Through Pass')
+		#Load data
+		df_dataset = load_dataset()
+
+
+		#Create list of available models
+		model_names_lin = []
+		model_names_log = []
+		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
+			if files.endswith(".sav"):
+				model_names_lin.append(files)
+
+		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
+			if files.endswith(".sav"):
+				model_names_log.append(files)
+
+		# Load Models
+		load_lin, load_log = st.columns(2)
+		with load_log:
+			selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
+		
+		with load_lin:
+			selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+
+		#Load log & lin models
+		model_pass_log = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
+		model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+
+		if test_old_model == "Trained model":
+			#List over features for both models
+			features_log_lin = model_pass_log.model.exog_names + model_pass_lin.model.exog_names
+			features_log_lin = [f.split("*") for f in features_log_lin]
+			features_log_lin = [x for y in features_log_lin for x in y]
+			features_log_lin = list(set(features_log_lin))
+			features_log_lin = [x for x in features_log_lin]
+
+
+			boolean_features = [[x] for x, y in df_dataset.dtypes.items() if y == bool and x in features_log_lin]
+			st.write(features_log_lin)
+			st.write(boolean_features)
+
+
+			#model_pass_log, model_pass_lin, = get_pass_model()
+
+			#Setting features True or False
+			columns = st.columns(len(boolean_features)+1)
+			for i, feature in enumerate(boolean_features):
+				temp_value = columns[i].checkbox(feature[0])
+				if temp_value:
+					feature.append(True)
+				else:
+					feature.append(False)
+			
+			st.write(boolean_features)
+		else:
+			columns = st.columns(6)
+			assist = columns[0].checkbox('Assist')
+			cross = columns[1].checkbox('Cross')
+			cutback = columns[2].checkbox('Pull-back')
+			switch = columns[3].checkbox('Switch')
+			through_pass = columns[4].checkbox('Through Pass')
 
 		columns = st.columns(3)
 		start_x = columns[0].slider('Start x', 0, 100, 50)
 		start_y = columns[1].slider('Start y', 0, 100, 50)
 
-		# Load Models
-		model_pass_log, model_pass_lin, = get_pass_model()
+
 
 
 		# Merged
@@ -107,8 +159,12 @@ with st.spinner("Loading"):
 			# weighed = st.checkbox("Weighted", True, help="multiplies final probability by 0.3")
 
 			df = create_dataset_start(start_x, start_y, not starting_point, simple=False)
-			df[['assist', 'cross', 'pull-back', 'switch',
-				'through_pass']] = assist, cross, cutback, switch, through_pass
+
+			for f in boolean_features:
+				df[f[0]] = f[1]
+
+			#df[['assist', 'cross', 'pull-back', 'switch',
+			#	'through_pass']] = assist, cross, cutback, switch, through_pass
 			df[['time_from_chain_start', 'time_difference']] = 0, 0
 
 			df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
@@ -199,6 +255,29 @@ with st.spinner("Loading"):
 
 				columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
 				columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
+
+		df_dataset = feature_creation(df_dataset)
+		df_dataset['const'] = 1
+		df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+		df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
+		df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
+		df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
+
+		probability_slider = st.slider("Probability", 
+			help="Probability that a pass leads to a chot which then leads to a goal. Limit this for fewer but (ideally) better passes",
+			min_value=0.00, 
+			max_value=1.00,
+			step=0.01,
+			value=0.50)
+
+
+
+
+		
+		
+
+
+
 	if selected_sub_page == "Train a model":
 
 		# Session state is used to save the attributes whenever a change is made on the page bu the user, otherwise the list would be reset
@@ -216,6 +295,7 @@ with st.spinner("Loading"):
 		model_name_input = st.text_input("Model Name")
 		if model_name_input:
 			model_name = model_name_input + ".sav"
+			filtered_settings_name = model_name_input + "_filter_settings.txt"
 
 		st.header("Filter data by attributes")
 		# Load Dataset
@@ -412,7 +492,7 @@ with st.spinner("Loading"):
 				#Remove the values not chosen from the chosen attribute
 				if chosen_attribute_values:
 					df_train = df_train[df_train[attlim].isin(chosen_attribute_values)]
-		
+
 		st.subheader("Limit so that two features are equal")
 		limit_features_based_on_equality = st.multiselect("Limit these features so that only data when they are equal to another feature is saved", all_columns)
 		if limit_features_based_on_equality:
@@ -434,7 +514,11 @@ with st.spinner("Loading"):
 
 		#Target attribute for the model
 		st.header("Target attribute and desired attributes")
-		target_attribute = st.selectbox("Select target attribute for the model", all_columns)
+		if model_type == "Linear Regression Model":
+			target_attribute = st.selectbox("Select target attribute for the model", float_columns)
+		
+		if model_type == "Logistic Regression Model":
+			target_attribute = st.selectbox("Select target attribute for the model", bool_columns)
 
 		#Let the user select attributes
 		col111, col222 = st.columns([1, 1])
@@ -592,7 +676,7 @@ with st.spinner("Loading"):
 						st.write(lin_model.summary2())
 					save_an_output_file = st.button("Save model to disk?")
 					if save_an_output_file:
-						output_name = f"{ROOT_DIR}/models/{model_name}"
+						output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
 						lin_model.save(output_name, remove_data=True)
 						st.write(f"Model has been saved at {output_name}")
 						st.session_state.train_the_model = False
@@ -609,7 +693,7 @@ with st.spinner("Loading"):
 						st.write(log_model.summary2())
 					save_an_output_file = st.button("Save model to disk?")
 					if save_an_output_file:
-						output_name = f"{ROOT_DIR}/models/{model_name}"
+						output_name = f"{ROOT_DIR}/models/log/models/{model_name}"
 						log_model.save(output_name, remove_data=True)
 						st.write(f"Model has been saved at {output_name}")
 						st.session_state.train_the_model = False
@@ -621,23 +705,28 @@ with st.spinner("Loading"):
 		how_many_models_test = st.selectbox("Test one model or compare two models?", ["Test a model", "Compare two models"])
 
 		#Create list of available models
-		model_names = []
-		for files in os.listdir(f"{ROOT_DIR}/models"):
+		model_names_lin = []
+		model_names_log = []
+		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
 			if files.endswith(".sav"):
-				model_names.append(files)
+				model_names_lin.append(files)
+
+		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
+			if files.endswith(".sav"):
+				model_names_log.append(files)
 
 		if how_many_models_test == "Test a model":
 			load_log_model, load_lin_model = st.columns(2)
 
 			with load_log_model:
-				selected_log_model = st.selectbox("Select Logistic Model", model_names)
+				selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
 			
 			with load_lin_model:
-				selected_lin_model = st.selectbox("Select Linear Model", model_names)
+				selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
 
 			#Load log & lin models
-			log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
-			lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
 
 			st.header("Statistics")
 
@@ -684,17 +773,17 @@ with st.spinner("Loading"):
 		if how_many_models_test == "Compare two models":
 			load_log_model, load_lin_model = st.columns(2)
 			with load_log_model:
-				selected_log_model = st.selectbox("Select First Logistic Model", model_names)
-				selected_log_model2 = st.selectbox("Select Second Logistic Model", model_names)		
+				selected_log_model = st.selectbox("Select First Logistic Model", model_names_log)
+				selected_log_model2 = st.selectbox("Select Second Logistic Model", model_names_log)		
 			with load_lin_model:
-				selected_lin_model = st.selectbox("Select First Linear Model", model_names)
-				selected_lin_model2 = st.selectbox("Select Second Linear Model", model_names)
+				selected_lin_model = st.selectbox("Select First Linear Model", model_names_lin)
+				selected_lin_model2 = st.selectbox("Select Second Linear Model", model_names_lin)
 
 			#Load log & lin models
-			log_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model}", 'rb'))
-			lin_model = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model}", 'rb'))
-			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/{selected_log_model2}", 'rb'))
-			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/{selected_lin_model2}", 'rb'))
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model2}", 'rb'))
+			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model2}", 'rb'))
 
 			st.header("Statistics")
 
@@ -903,8 +992,8 @@ with st.spinner("Loading"):
 				fig = plt.figure()
 				plt.plot(fpr, tpr, color="orange", label="ROC Curve")
 				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
-				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
-				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
 				plt.grid(True)
 				plt.legend()
 				plt.xlabel("False Positive Rate")
@@ -945,8 +1034,8 @@ with st.spinner("Loading"):
 				fig = plt.figure()
 				plt.plot(fpr, tpr, color="orange", label="ROC Curve")
 				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
-				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
-				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
 				plt.grid(True)
 				plt.legend()
 				plt.xlabel("False Positive Rate")
@@ -958,8 +1047,8 @@ with st.spinner("Loading"):
 				fig = plt.figure()
 				plt.plot(fpr2, tpr2, color="orange", label="ROC Curve")
 				plt.plot([0, 1], [0, 1], color="blue", label="Random Guess", linestyle="--")
-				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
-				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+				plt.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+				plt.yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
 				plt.grid(True)
 				plt.legend()
 				plt.xlabel("False Positive Rate")
