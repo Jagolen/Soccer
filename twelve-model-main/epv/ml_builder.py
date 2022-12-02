@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 
-from processor import distance_to_goal, feature_creation
-import pickle
+from epv.processor import distance_to_goal, feature_creation
+import dill as pickle
 
 # import numexpr
 from sklearn.model_selection import train_test_split
@@ -26,6 +26,7 @@ def __add_features(df, model_variables):
 
     return df
 
+
 def __create_Neural_network_model(df, target_label, model_variables):
 
     # Create Train/Test Data
@@ -48,29 +49,29 @@ def __create_Neural_network_model(df, target_label, model_variables):
     scaler = MinMaxScaler().fit(X)
     X = scaler.transform(X)
 
-    
+
     #Grid search to find parameters for NN
 
     hidden_layer_sizes = [(200,75,25,10,2)]
     learning_rate = ['constant']
-    activation = ['tanh']
+    activation = ['identity', 'logistic', 'tanh', 'relu']
 
     param_grid = dict(hidden_layer_sizes=hidden_layer_sizes,learning_rate=learning_rate,activation = activation)
     #grid = MLPRegressor(random_state=3, max_iter=5000,hidden_layer_sizes = (200,75,25,10,2),learning_rate = 'constant',learning_rate_init = 0.0001)
-    Model = MLPRegressor(random_state=1,max_iter=5000, learning_rate_init = 0.001,solver='adam')
-    grid = GridSearchCV(estimator=Model, param_grid=param_grid,cv=StratifiedKFold(n_splits=3), scoring = 'roc_auc', verbose=10,n_jobs=-1)
+    Model = MLPRegressor(random_state=3, learning_rate_init = 0.001)
+    grid = GridSearchCV(estimator=Model, param_grid=param_grid,cv=StratifiedKFold(n_splits=3), scoring = 'roc_auc', verbose=3,n_jobs=-1)
     
     xG_Model = grid.fit(X, Y)
 
     print("Best: {0}, using {1}".format(xG_Model.best_score_, xG_Model.best_params_))
     
-    
+    """
     #Evaluate Model with K-Fold Cross validation
     from sklearn.model_selection import StratifiedKFold,cross_val_score
     cv = StratifiedKFold(n_splits=3)
     scores = cross_val_score(estimator = grid, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
     print('Result from cross valuation:',scores)
-    
+    """
 
     Y_Test_Pred = xG_Model.predict(X_test)
     AUC = roc_auc_score(Y_test, Y_Test_Pred)
@@ -80,6 +81,7 @@ def __create_Neural_network_model(df, target_label, model_variables):
 
 
 def __create_logistic_model(df, target_label, model_variables):
+
 
     # Create Train/Test Data
     X = df.copy()
@@ -97,35 +99,45 @@ def __create_logistic_model(df, target_label, model_variables):
 
     # Original Logit model
     # Fit Model
-    #Model = Logit(Y_train, X_train,method='lbfgs')
-    #xG_Model = Model.fit()
+    Model = Logit(Y_train, X_train,method='lbfgs')
+    xG_Model = Model.fit()
     #print(xG_Model.score(X_train, Y_train))
-    #Y_Test_Pred = xG_Model.predict(X_test).round(decimals=0)
-    #AUC = accuracy_score(Y_test, Y_Test_Pred)
-    #print('Logit Model AUC:', AUC)
+    Y_Test_Pred = xG_Model.predict(X_test)
+    AUC = roc_auc_score(Y_test, Y_Test_Pred)
+    print('Logit Model AUC:', AUC)
 
-    from sklearn.linear_model import LogisticRegression
-    Model = LogisticRegression(penalty='none',max_iter=10000,solver='lbfgs')
+    #from sklearn.linear_model import LogisticRegression
+    #Model = LogisticRegression(penalty='none',max_iter=10000,solver='lbfgs')
     
     #Evaluate Model with K-Fold Cross validation
     from sklearn.model_selection import StratifiedKFold,cross_val_score
-    cv = StratifiedKFold(n_splits=3)
-    scores = cross_val_score(estimator = Model, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
-    print('Result from cross valuation:',scores)
-    
-    xG_Model = Model.fit(X_train,Y_train)
+    """ cv = StratifiedKFold(n_splits=10)
+    scores = cross_val_score(estimator = SMWrapper(sm.Logit), X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1) """
 
-    Y_Test_Pred = xG_Model.predict_proba(X_test)[:,1]
-    AUC = roc_auc_score(Y_test, Y_Test_Pred)
-    print('Pass Model Logistic AUC:', AUC)
+    result_auc = []
+    cv = StratifiedKFold(n_splits=10)
+    for train_index, test_index in cv.split(X,Y):
+        x_train, x_test = X[train_index], X[test_index]
+        y_train, y_test = Y[train_index], Y[test_index]
+        Model = Logit(y_train, x_train,method='lbfgs')
+        xG_Model = Model.fit()
+        Y_Test_Pred = xG_Model.predict(x_test)
+        result_auc.append(roc_auc_score(y_test, Y_Test_Pred))
+        
+
+
+    print('Result from cross valuation:',result_auc)
+
+    print(xG_Model.pvalues)
+
+    #Y_Test_Pred = xG_Model.predict_proba(X_test)[:,1]
+    #AUC = roc_auc_score(Y_test, Y_Test_Pred)
+    #print('Pass Model Logistic AUC:', AUC)
 
     return xG_Model, X_test, Y_test
 
-def __create_XGB_model(df, target_label, model_variables):
 
-    from sklearn.model_selection import GridSearchCV
-    from xgboost import XGBRegressor
-    from sklearn.model_selection import StratifiedKFold,cross_val_score
+def __create_XGB_model(df, target_label, model_variables):
 
     # Create Train/Test Data
     X = df.copy()
@@ -138,11 +150,17 @@ def __create_XGB_model(df, target_label, model_variables):
 
     Y = X[target_label].values
     X = X[model_variables].values
+    
+    # from sklearn.linear_model import LogisticRegression
+    # clf = LogisticRegression(random_state=0).fit(X_train, Y_train)
+    from sklearn.model_selection import StratifiedKFold,cross_val_score
+    from sklearn.model_selection import GridSearchCV
+    from xgboost import XGBRegressor
 
-    n_estimators = [50,100,200]
+    n_estimators = [100]
     max_depth=[4]
-    max_leaves = [0,5,30]
-    learning_rate = [0.3, 0.5]
+    max_leaves = [0,5]
+    learning_rate = [0.3]
 
 
     param_grid = dict(n_estimators=n_estimators,max_depth=max_depth,max_leaves=max_leaves,learning_rate=learning_rate)
@@ -154,11 +172,10 @@ def __create_XGB_model(df, target_label, model_variables):
     scores = cross_val_score(estimator = grid, X = X, y = Y, scoring='roc_auc', cv=cv, n_jobs=-1)
     print('Result for XGBoost from cross valuation:',scores)
 
+
     # Split Data into Test & Training Sets
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state = 123,stratify = Y)
     xG_Model = grid.fit(X_train,Y_train)
-
-    print("Best: {0}, using {1}".format(xG_Model.best_score_, xG_Model.best_params_))
 
     Y_Test_Pred = xG_Model.predict(X_test)
     print(Y_Test_Pred)
@@ -227,20 +244,20 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
 
     ### LOGISTIC MODEL
     # Train Model
-    #pass_log_model, X_test, Y_test = __create_logistic_model(df, target_label_log, log_columns)
+    pass_log_model, X_test, Y_test = __create_logistic_model(df, target_label_log, log_columns)
 
 
     ### XGBOOST MODEL
     # Train Model
-    pass_log_model, X_test, Y_test = __create_XGB_model(df, target_label_log, log_columns)
+    #pass_log_model, X_test, Y_test = __create_XGB_model(df, target_label_log, log_columns)
 
     ### Neural network MODEL
     # Train Model
     #pass_log_model, X_test, Y_test = __create_Neural_network_model(df, target_label_log, log_columns)
 
     # Summary of Model
-    #print('Summary of xG Model:')
-    #print(pass_log_model.summary2())
+    print('Summary of xG Model:')
+    print(pass_log_model.summary2())
 
     # Predict Probability of Goal
     #Y_Test_Pred = pass_log_model.predict(X_test)
@@ -276,9 +293,7 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
     # Y_Test_Pred = xgblinear.predict(X_test[PASS_LIN_MODEL_COLUMNS])
     # RMSE = sqrt(mean_squared_error(Y_test, Y_Test_Pred))
     # print('RMSE XGBoost', RMSE)
-    #out_lin_model_name = r'C:\Users\Markus\Documents\Projekt_ML_Football\opta\models\EPV_Lin_Model.sav'
-    out_lin_model_name = r'D:\ML_Football_project\twelve-model-main\models\EPV_Lin_Model.sav'
-    
+    out_lin_model_name = r'C:\Users\Markus\Documents\Projekt_ML_Football\opta\models\EPV_Lin_Model.sav'
 
     pass_lin_model.save(out_lin_model_name, remove_data=True)
 
@@ -293,9 +308,9 @@ def train_pass_possession_value_model(df_, log_columns, lin_columns,
 # 96 - 2022, 89 - 2021, 86 - 2020
 if __name__ == '__main__':
 
-    DATA_FOLDER = 'D:/ML_Football_project/twelve-model-main/data'
+    DATA_FOLDER = 'C:/Users/Markus/Documents/Projekt_ML_Football/opta/data'
 
-    PASS_LOG_MODEL_COLUMNS = [
+    """ PASS_LOG_MODEL_COLUMNS = [
         'const',
         'start_x', 'end_x',
         'end_y_adj', 'start_y_adj',
@@ -306,7 +321,21 @@ if __name__ == '__main__':
         'start_x*start_x*end_x',
         'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
         'end_y_adj*end_y_adj*start_y_adj',
+    ] """
 
+
+    #Columns after removing parameters with p-value > 0.05
+    PASS_LOG_MODEL_COLUMNS = [
+        'const',
+        'start_x', 'end_x',
+        'end_y_adj', 
+        'start_x*start_y_adj', 'start_x*start_x',
+        'end_x*end_x*end_x',
+        'start_y_adj*end_y_adj', 'start_x*start_y_adj*end_x',
+        'start_x*end_x*end_y_adj',
+        'start_x*start_x*end_x',
+        'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 
+        'end_y_adj*end_y_adj*start_y_adj',
     ]
 
     PASS_LIN_MODEL_COLUMNS = [
@@ -332,12 +361,14 @@ if __name__ == '__main__':
         'time_from_chain_start'
     ]
 
+
     df = pd.read_parquet(f"{DATA_FOLDER}/pass_xg.parquet")
 
     train_pass_possession_value_model(df,PASS_LOG_MODEL_COLUMNS, PASS_LIN_MODEL_COLUMNS,
                                         target_label_log = 'chain_shot',
                                         target_label_lin = 'chain_xG'
                                       )
+
 
 
 
