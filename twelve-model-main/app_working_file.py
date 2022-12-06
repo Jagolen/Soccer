@@ -262,6 +262,16 @@ with st.spinner("Loading"):
 		df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
 		df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
 		df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
+		# Only Open play passes
+		df_dataset = df_dataset[df_dataset['chain_type'] == 'open_play']
+
+		# Only passes from attacking possessions
+		df_dataset = df_dataset[df_dataset['possession_team_id'] == df_dataset['team_id']]
+
+		# Only successful passes
+		df_dataset = df_dataset[(df_dataset['outcome'])]
+
+
 
 		probability_slider = st.slider("Probability", 
 			help="Probability that a pass leads to a chot which then leads to a goal. Limit this for fewer but (ideally) better passes",
@@ -269,6 +279,55 @@ with st.spinner("Loading"):
 			max_value=1.00,
 			step=0.01,
 			value=0.50)
+
+		df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
+		df_dataset = df_dataset[df_dataset['start_x'] > 0]
+		df_dataset = df_dataset[df_dataset['start_y'] > 0]
+		df_dataset = df_dataset[df_dataset['end_x'] > 0]
+		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+		df_dataset['dx'] = df_dataset["end_x"] - df_dataset["start_x"]
+		df_dataset['dy'] = df_dataset["end_y"] - df_dataset["start_y"]
+		x = df_dataset["start_x"].to_numpy()
+		y = df_dataset["start_y"].to_numpy()
+		dx = df_dataset["dx"].to_numpy()
+		dy = df_dataset["dy"].to_numpy()
+		prob = df_dataset["prob"].to_numpy()
+
+		# Show dataset descriptions
+		with st.expander("Dataset",False):
+			st.write(df_dataset.shape)
+			st.dataframe(df_dataset.describe())
+
+		st.write(df_dataset["start_x"])
+		st.write(df_dataset["end_x"])
+
+		fig_columns = st.columns(len(boolean_features)+2)
+
+		with fig_columns[0]:
+			fig = plt.figure()
+			plt.quiver(x, y, dx, dy)
+			plt.xlim([0, 100])
+			plt.ylim([0, 100])
+			plt.title("All data")
+			st.pyplot(fig)
+
+		for i, att in enumerate(boolean_features):
+			with fig_columns[i+1]:
+				temp_df = df_dataset.copy()
+				temp_df = temp_df[temp_df[att[0]] == True]
+				x = temp_df["start_x"].to_numpy()
+				y = temp_df["start_y"].to_numpy()
+				dx = temp_df["dx"].to_numpy()
+				dy = temp_df["dy"].to_numpy()
+				prob = temp_df["prob"].to_numpy()
+				fig = plt.figure()
+				plt.quiver(x, y, dx, dy)
+				plt.xlim([0, 100])
+				plt.ylim([0, 100])
+				plt.title(att[0])
+				st.pyplot(fig)
+
+
 
 
 
