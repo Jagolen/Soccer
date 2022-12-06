@@ -291,7 +291,7 @@ with st.spinner("Loading"):
 			
 
 			pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
-			fig, ax = pitch.grid()
+			fig, ax = pitch.grid(axis=False)
 			for i, row in df_dataset.iterrows():
 				value = row["prob"]
 				#adjust the line width so that the more passes, the wider the line
@@ -312,6 +312,7 @@ with st.spinner("Loading"):
 				#annotate max text
 					ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "red", zorder = 4, fontsize = 12, rotation = int(angle))
 			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+			plt.axis("off")
 			st.pyplot(fig)
 
 		for i, att in enumerate(boolean_features):
@@ -320,7 +321,7 @@ with st.spinner("Loading"):
 				temp_df = temp_df[temp_df[att[0]] == True]
 				max_value = temp_df["prob"].max()
 				pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
-				fig, ax = pitch.grid()
+				fig, ax = pitch.grid(axis=False)
 				for i, row in temp_df.iterrows():
 					value = row["prob"]
 					#adjust the line width so that the more passes, the wider the line
@@ -341,6 +342,7 @@ with st.spinner("Loading"):
 					#annotate max text
 						ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "red", zorder = 4, fontsize = 12, rotation = int(angle))
 				ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
+				plt.axis("off")
 				st.pyplot(fig)
 
 
