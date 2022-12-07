@@ -56,7 +56,7 @@ st.set_page_config(page_title='Twelve Analytics Page',
 
 # def app():
 with st.spinner("Loading"):
-	selected_sub_page = st_row_buttons(["Visualize Model", "Train a model", "Test a model"])
+	selected_sub_page = st_row_buttons(["Visualize Model", "Train a model", "Test a model", "Good Passes"])
 
 	if selected_sub_page == 'Visualize Model':
 
@@ -250,12 +250,6 @@ with st.spinner("Loading"):
 				columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
 				columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
 
-		df_dataset = feature_creation(df_dataset)
-		df_dataset['const'] = 1
-		df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
-		df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
-		df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
-		df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
 		# Only Open play passes
 		df_dataset = df_dataset[df_dataset['chain_type'] == 'open_play']
 
@@ -264,6 +258,20 @@ with st.spinner("Loading"):
 
 		# Only successful passes
 		df_dataset = df_dataset[(df_dataset['outcome'])]
+
+
+		df_dataset = df_dataset[df_dataset['start_x'] > 0]
+		df_dataset = df_dataset[df_dataset['start_y'] > 0]
+		df_dataset = df_dataset[df_dataset['end_x'] > 0]
+		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+
+		df_dataset = feature_creation(df_dataset)
+		df_dataset['const'] = 1
+		df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+		df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
+		df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
+		df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
+
 
 
 
@@ -275,10 +283,7 @@ with st.spinner("Loading"):
 			value=0.50)
 
 		df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
-		df_dataset = df_dataset[df_dataset['start_x'] > 0]
-		df_dataset = df_dataset[df_dataset['start_y'] > 0]
-		df_dataset = df_dataset[df_dataset['end_x'] > 0]
-		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+
 		df_dataset['start_x_mod'] = df_dataset['start_x'] * 1.05
 		df_dataset['end_x_mod'] = df_dataset['end_x'] * 1.05
 		df_dataset['start_y_mod'] = df_dataset['start_y'] * 0.68
@@ -374,7 +379,7 @@ with st.spinner("Loading"):
 			model_name = model_name_input + ".sav"
 			filtered_settings_name = model_name_input + "_filter_settings.txt"
 
-		st.header("Filter data by attributes")
+		
 		# Load Dataset
 		df_train = load_dataset()
 
@@ -396,6 +401,15 @@ with st.spinner("Loading"):
 		# Get all string columns, some columns like team_id,player_id are ignored as well
 		categorical_columns = [x for x, y in df_train.dtypes.items() if 'type' in x or 'id' in x]
 
+		# Extends the data with custom data, hopefully will generate a better model
+		extend_the_data = st.checkbox("Extend data?", 
+			help="This will add 100 000 new rows with type id 1 and with random start and end values \
+				that goes outside the pitch, hopefully will improve the model around the edges of the field")
+		
+		if extend_the_data:
+			df_train = bld.add_pass_data(df_train)
+
+		st.header("Filter data by attributes")
 		st.subheader("Filter True and False attributes")
 		true_attr_col, false_attr_col = st.columns(2)
 
@@ -1138,4 +1152,5 @@ with st.spinner("Loading"):
 			st.write(f"Score : {(score * 100):.3f}% (Model 1), {(score2 * 100):.3f}% (Model 2)")
 			st.write(f"RMSE : {rmse:.3f} (Model 1), {rmse2:.3f} (Model 2)")
 
-
+	if selected_sub_page == "Good passses":
+		pass
