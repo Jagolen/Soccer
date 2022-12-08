@@ -5,6 +5,7 @@ import sys
 import os
 from io import BytesIO
 import streamlit as st
+import streamlit_pandas as sp
 import sklearn.metrics as skm
 from matplotlib.colors import ListedColormap
 from mplsoccer import Pitch
@@ -56,50 +57,57 @@ st.set_page_config(page_title='Twelve Analytics Page',
 
 # def app():
 with st.spinner("Loading"):
-	selected_sub_page = st_row_buttons(["Visualize Model", "Train a model", "Test a model", "Good Passes"])
+	selected_sub_page = st_row_buttons(["Visualize Model", "Train a model", "Test a model", "Pass Assesment"])
 
 	if selected_sub_page == 'Visualize Model':
 
 		test_old_model = st.selectbox("Select Passing Model", ["Trained model", "xT Positional", 'xT Action Based'])
+		type_of_model = st.selectbox("Select type of model", ["loglin", "log"])
 
 		#Load data
 		df_dataset = load_dataset()
 
 
 		#Create list of available models
-		model_names_lin = []
-		model_names_log = []
-		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
-			if files.endswith(".sav"):
-				model_names_lin.append(files)
 
+		if type_of_model == "loglin":
+			model_names_lin = []
+			for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
+				if files.endswith(".sav"):
+					model_names_lin.append(files)
+
+		model_names_log = []
 		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
 			if files.endswith(".sav"):
 				model_names_log.append(files)
 
 		# Load Models
-		load_lin, load_log = st.columns(2)
+		load_log, load_lin = st.columns(2)
 		with load_log:
 			selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
 		
 		with load_lin:
-			selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+			if type_of_model == "loglin":
+				selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+			else:
+				st.write("")
 
 		#Load log & lin models
 		model_pass_log = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
-		model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+		if type_of_model == "loglin":
+			model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
 
 		if test_old_model == "Trained model":
 			#List over features for both models
-			features_log_lin = model_pass_log.model.exog_names + model_pass_lin.model.exog_names
+			if type_of_model == "loglin":
+				features_log_lin = model_pass_log.model.exog_names + model_pass_lin.model.exog_names
+			else:
+				features_log_lin = model_pass_log.model.exog_names
 			features_log_lin = [f.split("*") for f in features_log_lin]
 			features_log_lin = [x for y in features_log_lin for x in y]
 			features_log_lin = list(set(features_log_lin))
 			features_log_lin = [x for x in features_log_lin]
 			boolean_features = [[x] for x, y in df_dataset.dtypes.items() if y == bool and x in features_log_lin]
-
-
-			#model_pass_log, model_pass_lin, = get_pass_model()
 
 			#Setting features True or False
 			columns = st.columns(len(boolean_features)+1)
@@ -161,12 +169,20 @@ with st.spinner("Loading"):
 			#	'through_pass']] = assist, cross, cutback, switch, through_pass
 			df[['time_from_chain_start', 'time_difference']] = 0, 0
 
-			df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+			if type_of_model == "loglin":
+				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
 
-			df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
-			df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
+				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
+				df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
 
-			df['prob'] = df['prob_log'] * df['prob_lin']
+				df['prob'] = df['prob_log'] * df['prob_lin']
+			else:
+				df = bld.__add_features(df, model_pass_log.model.exog_names)
+
+				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
+
+				df['prob'] = df['prob_log']
+
 
 			df = df.fillna(0)
 
@@ -210,8 +226,13 @@ with st.spinner("Loading"):
 			columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
 			columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
 		else:
-			columns = st.columns(3)
-			for i, row in enumerate(['prob_log', 'prob_lin', 'prob']):
+			if type_of_model == "loglin":
+				probabilities = ['prob_log', 'prob_lin', 'prob']
+				columns = st.columns(3)
+			else:
+				probabilities = ['prob']
+				columns = st.columns(1)
+			for i, row in enumerate(probabilities):
 				# Pitch
 				pitch = Pitch(pitch_type='opta',
 							  linewidth=1,
@@ -267,20 +288,27 @@ with st.spinner("Loading"):
 
 		df_dataset = feature_creation(df_dataset)
 		df_dataset['const'] = 1
-		df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
-		df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
-		df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
-		df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
 
-
-
-
+		if type_of_model == "loglin":
+			df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+			df_dataset['prob_log'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
+			df_dataset['prob_lin'] = model_pass_lin.predict(df_dataset[model_pass_lin.model.exog_names])
+			df_dataset['prob'] = df_dataset['prob_log'] * df_dataset['prob_lin']
+			df_dataset['prob'] = df_dataset['prob'].astype(float)
+		else:
+			df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names)
+			df_dataset['prob'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
+			df_dataset['prob'] = df_dataset['prob'].astype(float)
+		df_dataset = df_dataset.nlargest(10000, 'prob')
+		min_value=df_dataset["prob"].min()
+		max_value=df_dataset["prob"].max()
+		
 		probability_slider = st.slider("Probability", 
 			help="Probability that a pass leads to a chot which then leads to a goal. Limit this for fewer but (ideally) better passes",
-			min_value=0.00, 
-			max_value=1.00,
+			min_value=float(min_value), 
+			max_value=float(max_value),
 			step=0.01,
-			value=0.50)
+			value=float((max_value+min_value)/2))
 
 		df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
 
@@ -288,13 +316,11 @@ with st.spinner("Loading"):
 		df_dataset['end_x_mod'] = df_dataset['end_x'] * 1.05
 		df_dataset['start_y_mod'] = df_dataset['start_y'] * 0.68
 		df_dataset['end_y_mod'] = df_dataset['end_y'] * 0.68
-		max_value = df["prob"].max()
+		max_value = df_dataset["prob"].max()
 
 		fig_columns = st.columns(len(boolean_features)+2)
 
 		with fig_columns[0]:
-			
-
 			pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
 			fig, ax = pitch.grid(axis=False)
 			for i, row in df_dataset.iterrows():
@@ -313,9 +339,9 @@ with st.spinner("Loading"):
 										alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
 				else:
 					pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-										alpha=1, width=line_width, zorder=2, color="red", ax = ax["pitch"])        
+										alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
 				#annotate max text
-					ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "red", zorder = 4, fontsize = 12, rotation = int(angle))
+					ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
 			plt.axis("off")
 			st.pyplot(fig)
@@ -329,8 +355,9 @@ with st.spinner("Loading"):
 				fig, ax = pitch.grid(axis=False)
 				for i, row in temp_df.iterrows():
 					value = row["prob"]
-					#adjust the line width so that the more passes, the wider the line
+					#adjust the line width so that better prob gives a wider line
 					line_width = (value / max_value)
+					
 					#get angle
 					if (row.end_x_mod - row.start_x_mod) != 0:
 						angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
@@ -343,22 +370,12 @@ with st.spinner("Loading"):
 											alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
 					else:
 						pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-											alpha=1, width=line_width, zorder=2, color="red", ax = ax["pitch"])        
+											alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
 					#annotate max text
-						ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "red", zorder = 4, fontsize = 12, rotation = int(angle))
+						ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 				ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
 				plt.axis("off")
 				st.pyplot(fig)
-
-
-
-
-
-
-		
-		
-
-
 
 	if selected_sub_page == "Train a model":
 
@@ -402,7 +419,7 @@ with st.spinner("Loading"):
 		categorical_columns = [x for x, y in df_train.dtypes.items() if 'type' in x or 'id' in x]
 
 		# Extends the data with custom data, hopefully will generate a better model
-		extend_the_data = st.checkbox("Extend data?", 
+		extend_the_data = st.checkbox("Extend pass data?", 
 			help="This will add 100 000 new rows with type id 1 and with random start and end values \
 				that goes outside the pitch, hopefully will improve the model around the edges of the field")
 		
@@ -1152,5 +1169,34 @@ with st.spinner("Loading"):
 			st.write(f"Score : {(score * 100):.3f}% (Model 1), {(score2 * 100):.3f}% (Model 2)")
 			st.write(f"RMSE : {rmse:.3f} (Model 1), {rmse2:.3f} (Model 2)")
 
-	if selected_sub_page == "Good passses":
-		pass
+	if selected_sub_page == "Pass Assesment":
+		#Load data
+		df_gp = load_dataset()
+
+		#Create list of available models
+		model_names_lin = []
+		model_names_log = []
+		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
+			if files.endswith(".sav"):
+				model_names_lin.append(files)
+
+		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
+			if files.endswith(".sav"):
+				model_names_log.append(files)
+
+		# Load Models
+		load_lin, load_log = st.columns(2)
+		with load_log:
+			selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
+		
+		with load_lin:
+			selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+
+		#Load log & lin models
+		model_pass_log = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
+		model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+
+		#Not bool columns
+		not_bool = [x for x, y in df_gp.dtypes.items() if y != bool]
+		test = sp.create_widgets(df_gp, ignore_columns=not_bool)
+		res = sp.filter_df(df_gp, test)
