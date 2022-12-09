@@ -299,65 +299,38 @@ with st.spinner("Loading"):
 			df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names)
 			df_dataset['prob'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
 			df_dataset['prob'] = df_dataset['prob'].astype(float)
-		df_dataset = df_dataset.nlargest(10000, 'prob')
-		min_value=df_dataset["prob"].min()
-		max_value=df_dataset["prob"].max()
 		
-		probability_slider = st.slider("Probability", 
-			help="Probability that a pass leads to a chot which then leads to a goal. Limit this for fewer but (ideally) better passes",
-			min_value=float(min_value), 
-			max_value=float(max_value),
-			step=0.01,
-			value=float((max_value+min_value)/2))
+		how_many_points_save = st.text_input("Choose how many datapoints to save. A number under 10 000 is recommended")
+		how_many_points_save = int(how_many_points_save)
+		if how_many_points_save and how_many_points_save != 0:
+			df_dataset = df_dataset.nlargest(how_many_points_save, 'prob')
+			min_value=df_dataset["prob"].min()
+			max_value=df_dataset["prob"].max()
+			
+			probability_slider = st.slider("Probability", 
+				help="Probability that a pass leads to a chot which then leads to a goal. Limit this for fewer but (ideally) better passes",
+				min_value=float(min_value), 
+				max_value=float(max_value),
+				step=0.01,
+				value=float((max_value+min_value)/2))
 
-		df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
+			df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
 
-		df_dataset['start_x_mod'] = df_dataset['start_x'] * 1.05
-		df_dataset['end_x_mod'] = df_dataset['end_x'] * 1.05
-		df_dataset['start_y_mod'] = df_dataset['start_y'] * 0.68
-		df_dataset['end_y_mod'] = df_dataset['end_y'] * 0.68
-		max_value = df_dataset["prob"].max()
+			df_dataset['start_x_mod'] = df_dataset['start_x'] * 1.05
+			df_dataset['end_x_mod'] = df_dataset['end_x'] * 1.05
+			df_dataset['start_y_mod'] = df_dataset['start_y'] * 0.68
+			df_dataset['end_y_mod'] = df_dataset['end_y'] * 0.68
+			max_value = df_dataset["prob"].max()
 
-		fig_columns = st.columns(len(boolean_features)+2)
+			fig_columns = st.columns(len(boolean_features)+2)
 
-		with fig_columns[0]:
-			pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
-			fig, ax = pitch.grid(axis=False)
-			for i, row in df_dataset.iterrows():
-				value = row["prob"]
-				#adjust the line width so that the more passes, the wider the line
-				line_width = (value / max_value)
-				#get angle
-				if (row.end_x_mod - row.start_x_mod) != 0:
-					angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
-				else:
-					angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
-
-				#plot lines on the pitch
-				if row.prob != max_value:
-					pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-										alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
-				else:
-					pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-										alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
-				#annotate max text
-					ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
-			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
-			plt.axis("off")
-			st.pyplot(fig)
-
-		for i, att in enumerate(boolean_features):
-			with fig_columns[i+1]:
-				temp_df = df_dataset.copy()
-				temp_df = temp_df[temp_df[att[0]] == True]
-				max_value = temp_df["prob"].max()
+			with fig_columns[0]:
 				pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
 				fig, ax = pitch.grid(axis=False)
-				for i, row in temp_df.iterrows():
+				for i, row in df_dataset.iterrows():
 					value = row["prob"]
-					#adjust the line width so that better prob gives a wider line
+					#adjust the line width so that the more passes, the wider the line
 					line_width = (value / max_value)
-					
 					#get angle
 					if (row.end_x_mod - row.start_x_mod) != 0:
 						angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
@@ -373,9 +346,42 @@ with st.spinner("Loading"):
 											alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
 					#annotate max text
 						ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
-				ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
+				ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
 				plt.axis("off")
 				st.pyplot(fig)
+
+			for i, att in enumerate(boolean_features):
+				with fig_columns[i+1]:
+					temp_df = df_dataset.copy()
+					temp_df = temp_df[temp_df[att[0]] == True]
+					max_value = temp_df["prob"].max()
+					pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+					fig, ax = pitch.grid(axis=False)
+					for i, row in temp_df.iterrows():
+						value = row["prob"]
+						#adjust the line width so that better prob gives a wider line
+						line_width = (value / max_value)
+						
+						#get angle
+						if (row.end_x_mod - row.start_x_mod) != 0:
+							angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+						else:
+							angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+
+						#plot lines on the pitch
+						if row.prob != max_value:
+							pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+												alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+						else:
+							pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+												alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
+						#annotate max text
+							ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+					ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
+					plt.axis("off")
+					st.pyplot(fig)
+		else:
+			st.write("No data to visualize!")
 
 	if selected_sub_page == "Train a model":
 
@@ -1170,33 +1176,156 @@ with st.spinner("Loading"):
 			st.write(f"RMSE : {rmse:.3f} (Model 1), {rmse2:.3f} (Model 2)")
 
 	if selected_sub_page == "Pass Assesment":
+		type_of_model = st.selectbox("Select type of model", ["loglin", "log"])
+
 		#Load data
 		df_gp = load_dataset()
 
-		#Create list of available models
-		model_names_lin = []
-		model_names_log = []
-		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
-			if files.endswith(".sav"):
-				model_names_lin.append(files)
 
+		#Create list of available models
+
+		if type_of_model == "loglin":
+			model_names_lin = []
+			for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
+				if files.endswith(".sav"):
+					model_names_lin.append(files)
+
+		model_names_log = []
 		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
 			if files.endswith(".sav"):
 				model_names_log.append(files)
 
 		# Load Models
-		load_lin, load_log = st.columns(2)
+		load_log, load_lin = st.columns(2)
 		with load_log:
 			selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
 		
 		with load_lin:
-			selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+			if type_of_model == "loglin":
+				selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
+			else:
+				st.write("")
 
 		#Load log & lin models
 		model_pass_log = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
-		model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+		if type_of_model == "loglin":
+			model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
 
-		#Not bool columns
-		not_bool = [x for x, y in df_gp.dtypes.items() if y != bool]
-		test = sp.create_widgets(df_gp, ignore_columns=not_bool)
-		res = sp.filter_df(df_gp, test)
+		# Only Open play passes
+		df_gp = df_gp[df_gp['chain_type'] == 'open_play']
+
+		# Only passes from attacking possessions
+		df_gp = df_gp[df_gp['possession_team_id'] == df_gp['team_id']]
+
+		# Only successful passes
+		df_gp = df_gp[(df_gp['outcome'])]
+
+		#Choose League
+		#Lookup table for league
+		tournament_id_lookup_table = {
+			"Allsvenskan": 13,
+			"Bundesliga": 3,
+			"Serie A": 20,
+			"Premier League": 12,
+			"La Liga": 21,
+			"Norway": 19,
+			"Denmark": 18,
+		}
+
+		leagues = tournament_id_lookup_table.keys()
+
+		# The id number is converted to its corresponding string to be shown in the selectbox	
+		chosen_league = st.selectbox("Choose a league", leagues, label_visibility="collapsed")
+
+		# Convert the string back to the id value which is used for filtering
+		chosen_league = tournament_id_lookup_table[chosen_league]
+
+		df_gp = df_gp[df_gp["tournament_id"] == chosen_league]
+
+		match_values = pd.unique(df_gp["match_id"])
+		chosen_match = st.selectbox("Choose Match", match_values)
+
+		df_gp = df_gp[df_gp["match_id"] == chosen_match]
+
+		what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
+
+		if what_to_visualize == "One Team":
+			teams_playing = pd.unique(df_gp["team_id"])
+			selected_team = st.selectbox("Show which team?", teams_playing)
+			df_gp = df_gp[df_gp["team_id"] == selected_team]
+
+		df_gp = df_gp[df_gp['start_x'] > 0]
+		df_gp = df_gp[df_gp['start_y'] > 0]
+		df_gp = df_gp[df_gp['end_x'] > 0]
+		df_gp = df_gp[df_gp['end_y'] > 0]
+
+		df_gp = feature_creation(df_gp)
+		df_gp['const'] = 1
+
+		if type_of_model == "loglin":
+			df_gp = bld.__add_features(df_gp, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+			df_gp['prob_log'] = model_pass_log.predict(df_gp[model_pass_log.model.exog_names])
+			df_gp['prob_lin'] = model_pass_lin.predict(df_gp[model_pass_lin.model.exog_names])
+			df_gp['prob'] = df_gp['prob_log'] * df_gp['prob_lin']
+			df_gp['prob'] = df_gp['prob'].astype(float)
+		else:
+			df_gp = bld.__add_features(df_gp, model_pass_log.model.exog_names)
+			df_gp['prob'] = model_pass_log.predict(df_gp[model_pass_log.model.exog_names])
+			df_gp['prob'] = df_gp['prob'].astype(float)
+		
+		df_gp = df_gp.sort_values(by= ['prob'], ascending=False)
+		df_gp['rank'] = range(1, 1+len(df_gp))
+
+		#Len of DF
+		len_of_df = len(df_gp)
+
+		if 'top_pass' not in st.session_state:
+			st.session_state.top_pass = 10
+		if st.session_state.top_pass <= len_of_df:
+			df_gp = df_gp[st.session_state.top_pass-10:st.session_state.top_pass]
+		else:
+			df_gp = df_gp[st.session_state.top_pass-10:len_of_df]
+		
+		st.write(f"**Showing the best {st.session_state.top_pass} passes**")
+
+		df_gp['start_x_mod'] = df_gp['start_x'] * 1.05
+		df_gp['end_x_mod'] = df_gp['end_x'] * 1.05
+		df_gp['start_y_mod'] = df_gp['start_y'] * 0.68
+		df_gp['end_y_mod'] = df_gp['end_y'] * 0.68
+		max_value = df_gp["prob"].max()
+
+		pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+		fig, ax = pitch.grid(axis=False)
+		for i, row in df_gp.iterrows():
+			value = row["rank"]
+			#adjust the line width so that the more passes, the wider the line
+			line_width = 3
+			#get angle
+			if (row.end_x_mod - row.start_x_mod) != 0:
+				angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+			else:
+				angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+
+			#plot lines on the pitch
+			pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+								alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+			#annotate max text
+			ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+		ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+		plt.axis("off")
+		st.pyplot(fig)
+		next_ranks = []
+		prev_ranks = []
+		if st.session_state.top_pass > 10:
+			prev_ranks = st.button("Previous 10?")
+		if st.session_state.top_pass < len_of_df:
+			next_ranks = st.button("Next 10?")
+		if next_ranks:
+			st.session_state.top_pass += 10
+		if prev_ranks:
+			st.session_state.top_pass -= 10
+		top_ten = st.button("Top 10")
+		if top_ten:
+			st.session_state.top_pass = 10
+
+		st.table(df_gp[['rank', 'prob']])
