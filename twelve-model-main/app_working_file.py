@@ -10,6 +10,7 @@ import sklearn.metrics as skm
 from matplotlib.colors import ListedColormap
 from mplsoccer import Pitch
 from st_row_buttons import st_row_buttons
+from matplotlib.cm import get_cmap
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -405,6 +406,8 @@ with st.spinner("Loading"):
 		
 		# Load Dataset
 		df_train = load_dataset()
+
+		df_train['chain_xG > 0.5'] = df_train['chain_xG'] > 0.05
 
 		# Get all columns
 		all_columns = [x for x, y in df_train.dtypes.items()]
@@ -807,7 +810,7 @@ with st.spinner("Loading"):
 						st.write(log_model.summary2())
 					save_an_output_file = st.button("Save model to disk?")
 					if save_an_output_file:
-						output_name = f"{ROOT_DIR}/models/log/models/{model_name}"
+						output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
 						log_model.save(output_name, remove_data=True)
 						st.write(f"Model has been saved at {output_name}")
 						st.session_state.train_the_model = False
@@ -1308,7 +1311,7 @@ with st.spinner("Loading"):
 
 			#plot lines on the pitch
 			pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-								alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+								alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
 			#annotate max text
 			ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 		ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
@@ -1322,10 +1325,13 @@ with st.spinner("Loading"):
 			next_ranks = st.button("Next 10?")
 		if next_ranks:
 			st.session_state.top_pass += 10
+			st.experimental_rerun()
 		if prev_ranks:
 			st.session_state.top_pass -= 10
+			st.experimental_rerun()
 		top_ten = st.button("Top 10")
 		if top_ten:
 			st.session_state.top_pass = 10
+			st.experimental_rerun()
 
 		st.table(df_gp[['rank', 'prob']])
