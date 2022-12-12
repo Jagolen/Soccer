@@ -1,4 +1,4 @@
-
+import numpy as np
 import pandas as pd
 
 # add epv. before processor if running streamlit for app.py
@@ -8,6 +8,7 @@ import pickle
 # import numexpr
 from sklearn.model_selection import train_test_split
 from math import sqrt
+import random
 import statsmodels.api as sm
 from sklearn.metrics import roc_auc_score, roc_curve, mean_squared_error
 from sklearn.model_selection import train_test_split
@@ -33,14 +34,17 @@ def add_pass_data(df):
     Create a new dataframe for passes with random start values, ending at the pitches line and an xG = 0
     '''
     df1 = pd.DataFrame(np.random.uniform(0.0, 100.0, size = (100000, 4)), columns = ['start_x', 'start_y', 'end_x', 'end_y'])
+    edge = [0.0, 100.0]
+    df1['end_y'] = pd.Series(np.tile(edge, len(df) // len(edge) + 1)[:len(df)]).sample(frac=1)
     df2 = pd.DataFrame(np.ones((100000, 3), int), columns = ['type_id', 'chain_start_type_id', 'prev_event_type'])
-    df3 = pd.DataFrame(np.zeros((100000, 3)), columns = ['time_difference', 'time_from_chain_start', 'pass_angle'])
+    df3 = pd.DataFrame(np.zeros((100000, 6)), columns = ['time_difference', 'time_from_chain_start', 'pass_angle',
+            'minute', 'second', 'match_state'])
     df4 = pd.DataFrame(np.full((100000, 24), False), columns = ['chain_goal', 'chain_shot','cross', 'head_pass',
             'through_pass', 'freekick_pass', 'corner_pass', 'throw-in', 'chipped', 'lay-off', 'launch', 'flick-on',
             'pull-back', 'switch', 'assist', '2nd_assist', 'in-swing', 'out-swing', 'straight', 'overhit_cross',
             'driven_cross', 'floated_cross', 'possession_goal', 'possession_shot'])
-    df5 = pd.DataFrame(np.full((100000, 10), 144716462022), columns = ['id', 'match_id', 'tournament_id', 'chain_id',
-            'possession_index', 'team_id', 'player_id', 'possession_team_id', 'event_index', 'prev_event_team'])
+    df5 = pd.DataFrame(np.random.randint(1, 1000000000, size = (100000, 11)), columns = ['id', 'match_id', 'tournament_id', 'chain_id',
+            'possession_index', 'team_id', 'player_id', 'possession_team_id', 'event_index', 'prev_event_team', 'season_id'])
     data_frames = [df1, df2, df3, df4, df5]
     new_df = pd.concat(data_frames, axis = 'columns')
 
@@ -53,6 +57,75 @@ def add_pass_data(df):
     df = pd.concat([df, new_df], ignore_index=True, sort=False)
     return df
 
+
+def split_data(df, x='start_x', y='start_y'):
+
+    dfA = df[df[x].between(0.0, 20.0, inclusive='right')]
+    dfB = df[df[x].between(20.0, 40.0, inclusive='right')]
+    dfC = df[df[x].between(40.0, 60.0, inclusive='right')]
+    dfD = df[df[x].between(60.0, 80.0, inclusive='right')]
+    dfE = df[df[x].between(80.0, 100.0, inclusive='right')]
+    df1 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
+    df2 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
+    df3 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
+    df4 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
+    df5 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
+    df6 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
+    df7 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
+    df8 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
+    df9 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
+    df10 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
+    df11 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
+    df12 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
+    df13 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
+    df14 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
+    df15 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
+    df16 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
+    df17 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
+    df18 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
+    df19 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
+    df20 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
+    df21 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+    df22 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+    df23 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+    df24 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+    df25 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+
+    new_df = pd.DataFrame([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15,
+                df16, df17, df18, df19, df20, df21, df22, df23, df24, df25])
+
+    smallest_size = len(df1.index)
+    for idx, df in enumerate(new_df):
+        size = len(new_df[idx].index)
+        if size < smallest_size:
+            smallest_size = size
+
+    # smallest_size = len(df1.index)
+    # for i in range(25):
+    #     dataframe = 'df' + str(i+1)
+    #     size = len(dataframe.index)
+    #     if size < smallest_size:
+    #         smallest_size = smallest_size
+    #         return smallest_size
+
+    for idx, new_df in enumerate(new_df):
+        new_df[idx] = sample_smallest_size(new_df, smallest_size)
+
+    for i in range(25):
+        dataframe = 'df' + str(i+1)
+        # if len(dataframe.index) == smallest_size:
+        #     new_df = pd.concat([new_df, dataframe])
+        #     continue
+        #size = int(len(dataframe) - smallest_size)
+        #dataframe = dataframe.sample(n=smallest_size, replace=True, random_state=1, ignore_index=True)
+        #df_drop = pd.DataFrame(default_rng().choice(dataframe.shape[0], size = size, replace=False))
+        #dataframe.drop(index=df_drop, inplace=True)
+
+        new_df = pd.concat([new_df, dataframe])
+
+    print(new_df)
+    df = new_df
+    return df
 
 def __create_logistic_model(df, target_label, model_variables):
 
