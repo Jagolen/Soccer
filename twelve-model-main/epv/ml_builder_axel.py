@@ -60,72 +60,35 @@ def add_pass_data(df):
 
 def split_data(df, x='start_x', y='start_y'):
 
-    dfA = df[df[x].between(0.0, 20.0, inclusive='right')]
-    dfB = df[df[x].between(20.0, 40.0, inclusive='right')]
-    dfC = df[df[x].between(40.0, 60.0, inclusive='right')]
-    dfD = df[df[x].between(60.0, 80.0, inclusive='right')]
-    dfE = df[df[x].between(80.0, 100.0, inclusive='right')]
-    df1 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
-    df2 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
-    df3 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
-    df4 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
-    df5 = dfA[dfA[y].between(0.0, 20.0, inclusive='right')]
-    df6 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
-    df7 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
-    df8 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
-    df9 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
-    df10 = dfB[dfB[y].between(20.0, 40.0, inclusive='right')]
-    df11 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
-    df12 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
-    df13 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
-    df14 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
-    df15 = dfC[dfC[y].between(40.0, 60.0, inclusive='right')]
-    df16 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
-    df17 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
-    df18 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
-    df19 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
-    df20 = dfD[dfD[y].between(60.0, 80.0, inclusive='right')]
-    df21 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
-    df22 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
-    df23 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
-    df24 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
-    df25 = dfE[dfE[y].between(80.0, 100.0, inclusive='right')]
+    # Sort the datframe by x and y columns:
+    df = df.sort_values(by=[x, y])
 
-    new_df = pd.DataFrame([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, df15,
-                df16, df17, df18, df19, df20, df21, df22, df23, df24, df25])
+    # create and empty list to store the new data_frames:
+    df_list = []
 
-    smallest_size = len(df1.index)
-    for idx, df in enumerate(new_df):
-        size = len(new_df[idx].index)
-        if size < smallest_size:
-            smallest_size = size
+    # loop over the x and y values:
+    for a in np.arange(0, 100, 20):
+        for b in np.arange(0, 100, 20):
+            # select rows where the coordinates are within the range:
+            df_slice = df[(df[x] > a) & (df[x] <= a + 20) &
+                          (df[y] > b) & (df[y] <= b + 20)]
+            # add the dataframe to the list:
+            df_list.append(df_slice)
 
-    # smallest_size = len(df1.index)
-    # for i in range(25):
-    #     dataframe = 'df' + str(i+1)
-    #     size = len(dataframe.index)
-    #     if size < smallest_size:
-    #         smallest_size = smallest_size
-    #         return smallest_size
+    # find the smallest dataframe in the list:
+    min_rows = min([len(df) for df in df_list])
+    max_rows = max([len(df) for df in df_list])
+    print(min_rows, max_rows)
 
-    for idx, new_df in enumerate(new_df):
-        new_df[idx] = sample_smallest_size(new_df, smallest_size)
+    # loop over the list of dataframes and sample each to the size of min_rows
+    for i, df in enumerate(df_list):
+        df_list[i] = df.sample(min_rows)
 
-    for i in range(25):
-        dataframe = 'df' + str(i+1)
-        # if len(dataframe.index) == smallest_size:
-        #     new_df = pd.concat([new_df, dataframe])
-        #     continue
-        #size = int(len(dataframe) - smallest_size)
-        #dataframe = dataframe.sample(n=smallest_size, replace=True, random_state=1, ignore_index=True)
-        #df_drop = pd.DataFrame(default_rng().choice(dataframe.shape[0], size = size, replace=False))
-        #dataframe.drop(index=df_drop, inplace=True)
+    # combine all smaller dataframes into one
+    df = pd.concat(df_list)
 
-        new_df = pd.concat([new_df, dataframe])
-
-    print(new_df)
-    df = new_df
     return df
+
 
 def __create_logistic_model(df, target_label, model_variables):
 
