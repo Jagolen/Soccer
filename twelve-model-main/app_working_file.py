@@ -302,8 +302,9 @@ with st.spinner("Loading"):
 			df_dataset['prob'] = df_dataset['prob'].astype(float)
 		
 		how_many_points_save = st.text_input("Choose how many datapoints to save. A number under 10 000 is recommended")
-		how_many_points_save = int(how_many_points_save)
+		
 		if how_many_points_save and how_many_points_save != 0:
+			how_many_points_save = int(how_many_points_save)
 			df_dataset = df_dataset.nlargest(how_many_points_save, 'prob')
 			min_value=df_dataset["prob"].min()
 			max_value=df_dataset["prob"].max()
@@ -1278,6 +1279,7 @@ with st.spinner("Loading"):
 		
 		df_gp = df_gp.sort_values(by= ['prob'], ascending=False)
 		df_gp['rank'] = range(1, 1+len(df_gp))
+		max_value = df_gp["prob"].max()
 
 		#Len of DF
 		len_of_df = len(df_gp)
@@ -1295,43 +1297,90 @@ with st.spinner("Loading"):
 		df_gp['end_x_mod'] = df_gp['end_x'] * 1.05
 		df_gp['start_y_mod'] = df_gp['start_y'] * 0.68
 		df_gp['end_y_mod'] = df_gp['end_y'] * 0.68
-		max_value = df_gp["prob"].max()
 
-		pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
-		fig, ax = pitch.grid(axis=False)
-		for i, row in df_gp.iterrows():
-			value = row["rank"]
-			#adjust the line width so that the more passes, the wider the line
-			line_width = 3
-			#get angle
-			if (row.end_x_mod - row.start_x_mod) != 0:
-				angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
-			else:
-				angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+		#Alt A
+		selected_features_log = st.multiselect("Select features for the Logicstic Regression Model (Order Matters)", model_pass_log.model.exog_names)
+		if type_of_model == "loglin":
+			selected_features_lin = st.multiselect("Select features for the Linear Regression Model (Order Matters)", model_pass_lin.model.exog_names)
+		if (type_of_model == "log" and len(selected_features_log) == 5) or (type_of_model == "loglin" and len(selected_features_log) == 5 and len(selected_features_lin) == 5):
+			stats_df = pd.DataFrame()
+			stats_df["rank"] = df_gp["rank"]
+			stats_df["prob"] = df_gp["prob"]
+			log_res = []
+			for i in range(len(selected_features_log)):
+				temp = pd.DataFrame()
+				active_feats = []
+				for j in range(i+1):
+					active_feats.append(selected_features_log[j])
+				not_selected_feat = [x for x in model_pass_log.model.exog_names if x not in active_feats]
+				for feat in active_feats:
+					temp[feat] = df_gp[feat]
+				for feat in not_selected_feat:
+					temp[feat] = 0
+				pred_single = model_pass_log.predict(temp)
+				if i == 0:
+					stats_df[f"{selected_features_log[i]} (log)"] = pred_single
+				else:
+					stats_df[f"{selected_features_log[i]} (log)"] = pred_single - stats_df[f"{selected_features_log[i-1]} (log)"]
 
-			#plot lines on the pitch
-			pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
-								alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
-			#annotate max text
-			ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
-		ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
-		plt.axis("off")
-		st.pyplot(fig)
-		next_ranks = []
-		prev_ranks = []
-		if st.session_state.top_pass > 10:
-			prev_ranks = st.button("Previous 10?")
-		if st.session_state.top_pass < len_of_df:
-			next_ranks = st.button("Next 10?")
-		if next_ranks:
-			st.session_state.top_pass += 10
-			st.experimental_rerun()
-		if prev_ranks:
-			st.session_state.top_pass -= 10
-			st.experimental_rerun()
-		top_ten = st.button("Top 10")
-		if top_ten:
-			st.session_state.top_pass = 10
-			st.experimental_rerun()
+			if type_of_model == "loglin":
+				lin_res = []
+				for i in range(len(selected_features_lin)):
+					temp = pd.DataFrame()
+					active_feats = []
+					for j in range(i+1):
+						active_feats.append(selected_features_lin[j])
+					not_selected_feat = [x for x in model_pass_lin.model.exog_names if x not in active_feats]
+					for feat in active_feats:
+						temp[feat] = df_gp[feat]
+					for feat in not_selected_feat:
+						temp[feat] = 0
+					pred_single = model_pass_lin.predict(temp)
+					if i == 0:
+						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single
+					else:
+						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single - stats_df[f"{selected_features_lin[i-1]} (lin)"]
 
-		st.table(df_gp[['rank', 'prob']])
+
+			pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+			fig, ax = pitch.grid(axis=False)
+			for i, row in df_gp.iterrows():
+				value = row["rank"]
+				#adjust the line width so that the more passes, the wider the line
+				line_width = 3
+				#get angle
+				if (row.end_x_mod - row.start_x_mod) != 0:
+					angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+				else:
+					angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+
+				#plot lines on the pitch
+				pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+									alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
+				#annotate max text
+				ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+			plt.axis("off")
+			st.pyplot(fig)
+			next_ranks = []
+			prev_ranks = []
+			if st.session_state.top_pass > 10:
+				prev_ranks = st.button("Previous 10?")
+			if st.session_state.top_pass < len_of_df:
+				next_ranks = st.button("Next 10?")
+			if next_ranks:
+				st.session_state.top_pass += 10
+				st.experimental_rerun()
+			if prev_ranks:
+				st.session_state.top_pass -= 10
+				st.experimental_rerun()
+			top_ten = st.button("Top 10")
+			if top_ten:
+				st.session_state.top_pass = 10
+				st.experimental_rerun()
+			
+			#Show the table
+			st.table(stats_df)
+		
+		else:
+			st.write("Select five features!")
