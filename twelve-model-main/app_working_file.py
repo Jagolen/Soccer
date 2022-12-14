@@ -317,37 +317,32 @@ with st.spinner("Loading"):
 				value=float((max_value+min_value)/2))
 
 			df_dataset = df_dataset[df_dataset['prob'] > probability_slider]
-
-			df_dataset['start_x_mod'] = df_dataset['start_x'] * 1.05
-			df_dataset['end_x_mod'] = df_dataset['end_x'] * 1.05
-			df_dataset['start_y_mod'] = df_dataset['start_y'] * 0.68
-			df_dataset['end_y_mod'] = df_dataset['end_y'] * 0.68
 			max_value = df_dataset["prob"].max()
 
 			fig_columns = st.columns(len(boolean_features)+2)
 
 			with fig_columns[0]:
-				pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+				pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
 				fig, ax = pitch.grid(axis=False)
 				for i, row in df_dataset.iterrows():
 					value = row["prob"]
 					#adjust the line width so that the more passes, the wider the line
 					line_width = (value / max_value)
 					#get angle
-					if (row.end_x_mod - row.start_x_mod) != 0:
-						angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+					if (row.end_x - row.start_x) != 0:
+						angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
 					else:
-						angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+						angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
 
 					#plot lines on the pitch
 					if row.prob != max_value:
-						pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+						pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
 											alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
 					else:
-						pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+						pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
 											alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
 					#annotate max text
-						ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+						ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 				ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
 				plt.axis("off")
 				st.pyplot(fig)
@@ -357,7 +352,7 @@ with st.spinner("Loading"):
 					temp_df = df_dataset.copy()
 					temp_df = temp_df[temp_df[att[0]] == True]
 					max_value = temp_df["prob"].max()
-					pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+					pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
 					fig, ax = pitch.grid(axis=False)
 					for i, row in temp_df.iterrows():
 						value = row["prob"]
@@ -365,20 +360,20 @@ with st.spinner("Loading"):
 						line_width = (value / max_value)
 						
 						#get angle
-						if (row.end_x_mod - row.start_x_mod) != 0:
-							angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+						if (row.end_x - row.start_x) != 0:
+							angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
 						else:
-							angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+							angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
 
 						#plot lines on the pitch
 						if row.prob != max_value:
-							pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
 												alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
 						else:
-							pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
 												alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
 						#annotate max text
-							ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+							ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 					ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
 					plt.axis("off")
 					st.pyplot(fig)
