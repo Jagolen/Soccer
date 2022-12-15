@@ -430,6 +430,13 @@ with st.spinner("Loading"):
 		
 		if extend_the_data:
 			df_train = bld.add_pass_data(df_train)
+		
+		split_data = st.checkbox("Split data?", help="This will split the field into sections and draw as \
+			many samples from each section as the smallest section. This means each section will have the same\
+				amount of data points")
+
+		if split_data:
+			df_train = bld.split_data(df_train)
 
 		st.header("Filter data by attributes")
 		st.subheader("Filter True and False attributes")
@@ -1219,39 +1226,58 @@ with st.spinner("Loading"):
 		# Only successful passes
 		df_gp = df_gp[(df_gp['outcome'])]
 
-		#Choose League
-		#Lookup table for league
-		tournament_id_lookup_table = {
-			"Allsvenskan": 13,
-			"Bundesliga": 3,
-			"Serie A": 20,
-			"Premier League": 12,
-			"La Liga": 21,
-			"Norway": 19,
-			"Denmark": 18,
-		}
+		what_pass_data = st.selectbox("Look at individual matches or look at best passes in a season?", ["Individual Matches", "Season"])
 
-		leagues = tournament_id_lookup_table.keys()
+		if what_pass_data == "Individual Matches":
+			#Choose League
+			#Lookup table for league
+			tournament_id_lookup_table = {
+				"Allsvenskan": 13,
+				"Bundesliga": 3,
+				"Serie A": 20,
+				"Premier League": 12,
+				"La Liga": 21,
+				"Norway": 19,
+				"Denmark": 18,
+			}
 
-		# The id number is converted to its corresponding string to be shown in the selectbox	
-		chosen_league = st.selectbox("Choose a league", leagues, label_visibility="collapsed")
+			leagues = tournament_id_lookup_table.keys()
 
-		# Convert the string back to the id value which is used for filtering
-		chosen_league = tournament_id_lookup_table[chosen_league]
+			# The id number is converted to its corresponding string to be shown in the selectbox	
+			chosen_league = st.selectbox("Choose a league", leagues, label_visibility="collapsed")
 
-		df_gp = df_gp[df_gp["tournament_id"] == chosen_league]
+			# Convert the string back to the id value which is used for filtering
+			chosen_league = tournament_id_lookup_table[chosen_league]
 
-		match_values = pd.unique(df_gp["match_id"])
-		chosen_match = st.selectbox("Choose Match", match_values)
+			df_gp = df_gp[df_gp["tournament_id"] == chosen_league]
 
-		df_gp = df_gp[df_gp["match_id"] == chosen_match]
+			match_values = pd.unique(df_gp["match_id"])
+			chosen_match = st.selectbox("Choose Match", match_values)
 
-		what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
+			df_gp = df_gp[df_gp["match_id"] == chosen_match]
 
-		if what_to_visualize == "One Team":
-			teams_playing = pd.unique(df_gp["team_id"])
-			selected_team = st.selectbox("Show which team?", teams_playing)
-			df_gp = df_gp[df_gp["team_id"] == selected_team]
+			what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
+
+			if what_to_visualize == "One Team":
+				teams_playing = pd.unique(df_gp["team_id"])
+				selected_team = st.selectbox("Show which team?", teams_playing)
+				df_gp = df_gp[df_gp["team_id"] == selected_team]
+		
+		if what_pass_data == "Season":
+			#Lookup table for season
+			season_id_lookup_table = {
+				2020: 86,
+				2021: 89,
+				2022: 96,
+			}			
+			seasons = season_id_lookup_table.keys()
+			# The id number is converted to its corresponding string to be shown in the selectbox	
+			chosen_season = st.selectbox("Choose a season", seasons, label_visibility="collapsed")
+
+			# Convert the string back to the id value which is used for filtering
+			chosen_season = season_id_lookup_table[chosen_season]
+
+			df_gp = df_gp[df_gp["season_id"] == chosen_season]
 
 		df_gp = df_gp[df_gp['start_x'] > 0]
 		df_gp = df_gp[df_gp['start_y'] > 0]
@@ -1287,11 +1313,6 @@ with st.spinner("Loading"):
 			df_gp = df_gp[st.session_state.top_pass-10:len_of_df]
 		
 		st.write(f"**Showing the best {st.session_state.top_pass} passes**")
-
-		df_gp['start_x_mod'] = df_gp['start_x'] * 1.05
-		df_gp['end_x_mod'] = df_gp['end_x'] * 1.05
-		df_gp['start_y_mod'] = df_gp['start_y'] * 0.68
-		df_gp['end_y_mod'] = df_gp['end_y'] * 0.68
 
 		#Alt A
 		selected_features_log = st.multiselect("Select features for the Logicstic Regression Model (Order Matters)", model_pass_log.model.exog_names)
@@ -1337,23 +1358,23 @@ with st.spinner("Loading"):
 						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single - stats_df[f"{selected_features_lin[i-1]} (lin)"]
 
 
-			pitch = Pitch(line_color='black',pitch_type='custom', pitch_length=105, pitch_width=68, line_zorder = 2)
+			pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
 			fig, ax = pitch.grid(axis=False)
 			for i, row in df_gp.iterrows():
 				value = row["rank"]
 				#adjust the line width so that the more passes, the wider the line
 				line_width = 3
 				#get angle
-				if (row.end_x_mod - row.start_x_mod) != 0:
-					angle = np.arctan((row.end_y_mod - row.start_y_mod)/(row.end_x_mod - row.start_x_mod))*180/np.pi
+				if (row.end_x - row.start_x) != 0:
+					angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
 				else:
-					angle = np.arctan((row.end_y_mod - row.start_y_mod)/0.000001)*180/np.pi
+					angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
 
 				#plot lines on the pitch
-				pitch.arrows(row.start_x_mod, row.start_y_mod, row.end_x_mod, row.end_y_mod,
+				pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
 									alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
 				#annotate max text
-				ax["pitch"].text((row.start_x_mod+row.end_x_mod-8)/2, (row.start_y_mod+row.end_y_mod-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+				ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
 			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
 			plt.axis("off")
 			st.pyplot(fig)
