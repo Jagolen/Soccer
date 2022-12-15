@@ -29,12 +29,14 @@ def __add_features(df, model_variables):
     return df
 
 
-def add_pass_data(df):
+def add_pass_data(df, short_edge=False):
     '''
     Create a new dataframe for passes with random start values, ending at the pitches line and an xG = 0
     '''
     df1 = pd.DataFrame(np.random.uniform(0.0, 100.0, size = (100000, 4)), columns = ['start_x', 'start_y', 'end_x', 'end_y'])
     edge = [0.0, 100.0]
+    if short_edge:
+        df1['end_x'] = pd.Series(np.tile(edge, len(df) // len(edge) + 1)[:len(df)]).sample(frac=1)
     df1['end_y'] = pd.Series(np.tile(edge, len(df) // len(edge) + 1)[:len(df)]).sample(frac=1)
     df2 = pd.DataFrame(np.ones((100000, 3), int), columns = ['type_id', 'chain_start_type_id', 'prev_event_type'])
     df3 = pd.DataFrame(np.zeros((100000, 6)), columns = ['time_difference', 'time_from_chain_start', 'pass_angle',
@@ -54,6 +56,9 @@ def add_pass_data(df):
     new_df['possession_xG'], new_df['chain_xG'] = 0.0, 0.0
     new_df = feature_creation(new_df)
 
+    #display(show_arrows(new_df.iloc[:20]))
+
+    #display(new_df)
     df = pd.concat([df, new_df], ignore_index=True, sort=False)
     return df
 
@@ -85,7 +90,7 @@ def split_data(df, x='start_x', y='start_y'):
         df_list[i] = df.sample(min_rows)
 
     # combine all smaller dataframes into one
-    df = pd.concat(df_list)
+    df = pd.concat(df_list, ignore_index=True)
 
     return df
 
