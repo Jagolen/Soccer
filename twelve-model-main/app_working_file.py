@@ -794,12 +794,10 @@ with st.spinner("Loading"):
 					show_train_stats = st.checkbox("Show statistics?")
 					if show_train_stats:
 						st.write(lin_model.summary2())
-					save_an_output_file = st.button("Save model to disk?")
-					if save_an_output_file:
-						output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
-						lin_model.save(output_name, remove_data=True)
-						st.write(f"Model has been saved at {output_name}")
-						st.session_state.train_the_model = False
+					output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
+					lin_model.save(output_name, remove_data=True)
+					st.write(f"Model has been saved at {output_name}")
+					st.session_state.train_the_model = False
 					
 					
 
@@ -811,12 +809,10 @@ with st.spinner("Loading"):
 					show_train_stats = st.checkbox("Show statistics?")
 					if show_train_stats:
 						st.write(log_model.summary2())
-					save_an_output_file = st.button("Save model to disk?")
-					if save_an_output_file:
-						output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
-						log_model.save(output_name, remove_data=True)
-						st.write(f"Model has been saved at {output_name}")
-						st.session_state.train_the_model = False
+					output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
+					log_model.save(output_name, remove_data=True)
+					st.write(f"Model has been saved at {output_name}")
+					st.session_state.train_the_model = False
 			else:
 				st.write("Error: No target attribute")
 	
