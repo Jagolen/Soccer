@@ -4,7 +4,7 @@ import sys
 import os
 from io import BytesIO
 import streamlit as st
-import streamlit_pandas as sp
+
 import sklearn.metrics as skm
 from matplotlib.colors import ListedColormap
 from mplsoccer import Pitch
@@ -16,7 +16,9 @@ import pandas as pd
 
 from pathlib import Path
 
+# import epv.ml_builder as bld
 import epv.ml_builder as bld
+
 from epv.processor import create_base_dataset, feature_creation
 from epv.twelve_xg_model_old import xT_pass, get_EPV_at_location
 from settings import ROOT_DIR
@@ -669,6 +671,7 @@ with st.spinner("Loading"):
 					st.session_state.active_attributes.append(i)
 				if not temp and i in st.session_state.active_attributes:
 					st.session_state.active_attributes.remove(i)
+
 			st.write(f"active attributes: {st.session_state.active_attributes}")
 
 			# Handles combining attributes, squaring attributes, deleting attributes and so on
@@ -784,10 +787,18 @@ with st.spinner("Loading"):
 				plt.rc("xtick", labelsize=6)
 				plt.rc("ytick", labelsize=6)
 				plt.title("Correlation Matrix")
-				st.pyplot(fig)
+				st.columns(3)[0].pyplot(fig) # to big for me :)
 
 		# This will activate the actual training
 		st.header("Training")
+
+		with st.expander("Show dataset"):
+
+			#
+			st.dataframe(df_train.head(100))
+			st.write(df_train.describe())
+			print(df_train.dtypes)
+
 		train = st.button("Train the Model")
 		if train:
 			st.session_state.train_the_model = True
@@ -807,7 +818,6 @@ with st.spinner("Loading"):
 					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
 					st.session_state.train_the_model = False
 					
-				
 
 				if model_type == "Logistic Regression Model":
 					#Target label
@@ -905,10 +915,10 @@ with st.spinner("Loading"):
 				selected_lin_model2 = st.selectbox("Select Second Linear Model", model_names_lin)
 
 			#Load log & lin models
-			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
-			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
-			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model2}", 'rb'))
-			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model2}", 'rb'))
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models_scaled/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models_scaled/{selected_lin_model}", 'rb'))
+			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models_scaled/{selected_log_model2}", 'rb'))
+			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models_scaled/{selected_lin_model2}", 'rb'))
 
 			st.header("Statistics")
 
@@ -1361,7 +1371,6 @@ with st.spinner("Loading"):
 						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single
 					else:
 						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single - stats_df[f"{selected_features_lin[i-1]} (lin)"]
-
 
 			pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
 			fig, ax = pitch.grid(axis=False)
