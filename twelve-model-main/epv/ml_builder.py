@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 
@@ -58,6 +57,11 @@ def add_pass_data(df):
 
 def __create_logistic_model(df, target_label, model_variables):
 
+    # Transform bools to int?
+    boolean_features = [x for x, y in df.dtypes.items() if y == bool and x in model_variables]
+    if len(boolean_features)>0:
+        df[boolean_features] = df[boolean_features].astype(int)
+
      # Create Train/Test Data
     X = df.copy()
 
@@ -89,7 +93,7 @@ def __create_logistic_model(df, target_label, model_variables):
 
     # Original Logit model
     # Fit Model
-    Model = Logit(Y_train, X_train,method='lbfgs')
+    Model = Logit(Y_train, X_train, method='lbfgs')
     xG_Model = Model.fit()
     #print(xG_Model.score(X_train, Y_train))
     Y_Test_Pred = xG_Model.predict(X_test)
@@ -125,6 +129,11 @@ def __create_logistic_model(df, target_label, model_variables):
 
 
 def __create_linear_model(df, target_label, model_variables):
+
+    # Transform bools to int?
+    boolean_features = [x for x, y in df.dtypes.items() if y == bool and x in model_variables]
+    if len(boolean_features)>0:
+        df[boolean_features] = df[boolean_features].astype(int)
 
     # Create Train/Test Data
     X = df.copy()
