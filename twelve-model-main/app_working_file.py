@@ -1,11 +1,10 @@
-
 import pickle
 import seaborn as sb
 import sys
 import os
 from io import BytesIO
 import streamlit as st
-import streamlit_pandas as sp
+
 import sklearn.metrics as skm
 from matplotlib.colors import ListedColormap
 from mplsoccer import Pitch
@@ -17,7 +16,9 @@ import pandas as pd
 
 from pathlib import Path
 
+# import epv.ml_builder as bld
 import epv.ml_builder as bld
+
 from epv.processor import create_base_dataset, feature_creation
 from epv.twelve_xg_model_old import xT_pass, get_EPV_at_location
 from settings import ROOT_DIR
@@ -33,6 +34,10 @@ def get_pass_model():
 def load_dataset():
 
 	return pd.read_parquet(f"{ROOT_DIR}/data/possessions_xg.parquet")
+
+def load_dataset2():
+
+	return pd.read_parquet(f"{ROOT_DIR}/data/match_info.parquet")
 
 
 def get_img_bytes(fig, custom=False, format='png', dpi=200):
@@ -403,7 +408,14 @@ with st.spinner("Loading"):
 		# Load Dataset
 		df_train = load_dataset()
 
-		df_train['chain_xG > 0.5'] = df_train['chain_xG'] > 0.05
+		df_train['chain_xG > 0.05'] = df_train['chain_xG'] > 0.05
+		df_train = df_train[df_train['chain_type'] == 'open_play']
+
+		# Only passes from attacking possessions
+		df_train = df_train[df_train['possession_team_id'] == df_train['team_id']]
+
+		# Only successful passes
+		df_train = df_train[(df_train['outcome'])]
 
 		# Get all columns
 		all_columns = [x for x, y in df_train.dtypes.items()]
@@ -429,7 +441,8 @@ with st.spinner("Loading"):
 				that goes outside the pitch, hopefully will improve the model around the edges of the field")
 		
 		if extend_the_data:
-			df_train = bld.add_pass_data(df_train)
+			goalside = st.checkbox("Add passes for the goal side aswell?")
+			df_train = bld.add_pass_data(df_train, goalside)
 		
 		split_data = st.checkbox("Split data?", help="This will split the field into sections and draw as \
 			many samples from each section as the smallest section. This means each section will have the same\
@@ -663,6 +676,7 @@ with st.spinner("Loading"):
 					st.session_state.active_attributes.append(i)
 				if not temp and i in st.session_state.active_attributes:
 					st.session_state.active_attributes.remove(i)
+
 			st.write(f"active attributes: {st.session_state.active_attributes}")
 
 			# Handles combining attributes, squaring attributes, deleting attributes and so on
@@ -778,10 +792,18 @@ with st.spinner("Loading"):
 				plt.rc("xtick", labelsize=6)
 				plt.rc("ytick", labelsize=6)
 				plt.title("Correlation Matrix")
-				st.pyplot(fig)
+				st.columns(3)[0].pyplot(fig) # to big for me :)
 
 		# This will activate the actual training
 		st.header("Training")
+
+		with st.expander("Show dataset"):
+
+			#
+			st.dataframe(df_train.head(100))
+			st.write(df_train.describe())
+			print(df_train.dtypes)
+
 		train = st.button("Train the Model")
 		if train:
 			st.session_state.train_the_model = True
@@ -789,29 +811,31 @@ with st.spinner("Loading"):
 		if st.session_state.train_the_model:
 			if target_attribute:
 				if model_type == "Linear Regression Model":
-					lin_model, x_test, y_test = bld.__create_linear_model(df_train, target_attribute, st.session_state.attributes)
+					lin_model, lin_model_scaled, x_test, y_test = bld.__create_linear_model(df_train, target_attribute, st.session_state.attributes)
 					st.write("Model has been trained")
 					show_train_stats = st.checkbox("Show statistics?")
 					if show_train_stats:
 						st.write(lin_model.summary2())
 					output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
-					lin_model.save(output_name, remove_data=True)
-					st.write(f"Model has been saved at {output_name}")
+					lin_model.save(output_name, remove_data=False)
+					output_name_scaled = f"{ROOT_DIR}/models/lin_models_scaled/{model_name}"
+					lin_model_scaled.save(output_name_scaled, remove_data=False)
+					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
 					st.session_state.train_the_model = False
 					
-					
-
 
 				if model_type == "Logistic Regression Model":
 					#Target label
 					df_train[target_attribute] = df_train[target_attribute].astype(bool)
-					log_model, x_test, y_test = bld.__create_logistic_model(df_train, target_attribute, st.session_state.attributes)
+					log_model, log_model_scaled, x_test, y_test = bld.__create_logistic_model(df_train, target_attribute, st.session_state.attributes)
 					show_train_stats = st.checkbox("Show statistics?")
 					if show_train_stats:
 						st.write(log_model.summary2())
 					output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
-					log_model.save(output_name, remove_data=True)
-					st.write(f"Model has been saved at {output_name}")
+					log_model.save(output_name, remove_data=False)
+					output_name_scaled = f"{ROOT_DIR}/models/log_models_scaled/{model_name}"
+					log_model_scaled.save(output_name_scaled, remove_data=False)
+					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
 					st.session_state.train_the_model = False
 			else:
 				st.write("Error: No target attribute")
@@ -823,11 +847,11 @@ with st.spinner("Loading"):
 		#Create list of available models
 		model_names_lin = []
 		model_names_log = []
-		for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
+		for files in os.listdir(f"{ROOT_DIR}/models/lin_models_scaled"):
 			if files.endswith(".sav"):
 				model_names_lin.append(files)
 
-		for files in os.listdir(f"{ROOT_DIR}/models/log_models"):
+		for files in os.listdir(f"{ROOT_DIR}/models/log_models_scaled"):
 			if files.endswith(".sav"):
 				model_names_log.append(files)
 
@@ -841,8 +865,8 @@ with st.spinner("Loading"):
 				selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
 
 			#Load log & lin models
-			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
-			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models_scaled/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models_scaled/{selected_lin_model}", 'rb'))
 
 			st.header("Statistics")
 
@@ -896,10 +920,10 @@ with st.spinner("Loading"):
 				selected_lin_model2 = st.selectbox("Select Second Linear Model", model_names_lin)
 
 			#Load log & lin models
-			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
-			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
-			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model2}", 'rb'))
-			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model2}", 'rb'))
+			log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models_scaled/{selected_log_model}", 'rb'))
+			lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models_scaled/{selected_lin_model}", 'rb'))
+			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models_scaled/{selected_log_model2}", 'rb'))
+			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models_scaled/{selected_lin_model2}", 'rb'))
 
 			st.header("Statistics")
 
@@ -1078,14 +1102,14 @@ with st.spinner("Loading"):
 		dfr['const'] = 1
 
 		# Evaluate combinations of features
-		dfr = bld.__add_features(dfr, PASS_LOG_MODEL_COLUMNS + PASS_LIN_MODEL_COLUMNS)
+		dfr = bld.__add_features(dfr, log_model.model.exog_names + lin_model.model.exog_names)
 		
 		#Prediction
 		X = dfr.copy()
-		Ylog = X.loc[:, X.columns == 'chain_shot']
+		Ylog = X.loc[:, X.columns == log_model.model.endog_names]
 		Ylin = X.loc[:, X.columns == 'chain_xG']
-		Xlog = X[PASS_LOG_MODEL_COLUMNS]
-		Xlin = X[PASS_LIN_MODEL_COLUMNS]
+		Xlog = X[log_model.model.exog_names]
+		Xlin = X[lin_model.model.exog_names]
 		Ylog_pred = log_model.predict(Xlog).values
 		Ylin_pred = lin_model.predict(Xlin).values
 
@@ -1225,6 +1249,10 @@ with st.spinner("Loading"):
 		what_pass_data = st.selectbox("Look at individual matches or look at best passes in a season?", ["Individual Matches", "Season"])
 
 		if what_pass_data == "Individual Matches":
+
+			df_match = load_dataset2()
+
+
 			#Choose League
 			#Lookup table for league
 			tournament_id_lookup_table = {
@@ -1246,18 +1274,26 @@ with st.spinner("Loading"):
 			chosen_league = tournament_id_lookup_table[chosen_league]
 
 			df_gp = df_gp[df_gp["tournament_id"] == chosen_league]
+			df_match = df_match[df_match["tournament_id"] == chosen_league]
+			df_match["match"] = df_match['date'].astype(str) + " : " + df_match['home_team_name'].astype(str) + " - " + df_match['away_team_name'].astype(str)
 
-			match_values = pd.unique(df_gp["match_id"])
+			match_values = pd.unique(df_match["match"])
 			chosen_match = st.selectbox("Choose Match", match_values)
 
-			df_gp = df_gp[df_gp["match_id"] == chosen_match]
+			df_match = df_match[df_match["match"] == chosen_match]
+			teams = [df_match['home_team_id'][0], df_match['away_team_id'][0]]
+			df_gp = df_gp[df_gp['team_id'].isin(teams)]
+
 
 			what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
 
 			if what_to_visualize == "One Team":
-				teams_playing = pd.unique(df_gp["team_id"])
+				teams_playing = teams = [df_match['home_team_name'][0], df_match['away_team_name'][0]]
 				selected_team = st.selectbox("Show which team?", teams_playing)
-				df_gp = df_gp[df_gp["team_id"] == selected_team]
+				if df_match["home_team_name"][0] == selected_team:
+					df_gp = df_gp[df_gp["team_id"] == df_match["home_team_id"][0]]
+				else:
+					df_gp = df_gp[df_gp["team_id"] == df_match["away_team_id"][0]]
 		
 		if what_pass_data == "Season":
 			#Lookup table for season
@@ -1352,7 +1388,6 @@ with st.spinner("Loading"):
 						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single
 					else:
 						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single - stats_df[f"{selected_features_lin[i-1]} (lin)"]
-
 
 			pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
 			fig, ax = pitch.grid(axis=False)
