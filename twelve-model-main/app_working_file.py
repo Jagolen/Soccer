@@ -821,7 +821,7 @@ with st.spinner("Loading"):
 					output_name_scaled = f"{ROOT_DIR}/models/lin_models_scaled/{model_name}"
 					lin_model_scaled.save(output_name_scaled, remove_data=False)
 					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
-					st.session_state.train_the_model = False
+					#st.session_state.train_the_model = False
 					
 
 				if model_type == "Logistic Regression Model":
@@ -836,7 +836,7 @@ with st.spinner("Loading"):
 					output_name_scaled = f"{ROOT_DIR}/models/log_models_scaled/{model_name}"
 					log_model_scaled.save(output_name_scaled, remove_data=False)
 					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
-					st.session_state.train_the_model = False
+					#st.session_state.train_the_model = False
 			else:
 				st.write("Error: No target attribute")
 	
@@ -1107,7 +1107,7 @@ with st.spinner("Loading"):
 		#Prediction
 		X = dfr.copy()
 		Ylog = X.loc[:, X.columns == log_model.model.endog_names]
-		Ylin = X.loc[:, X.columns == 'chain_xG']
+		Ylin = X.loc[:, X.columns == lin_model.model.endog_names]
 		Xlog = X[log_model.model.exog_names]
 		Xlin = X[lin_model.model.exog_names]
 		Ylog_pred = log_model.predict(Xlog).values
@@ -1281,19 +1281,27 @@ with st.spinner("Loading"):
 			chosen_match = st.selectbox("Choose Match", match_values)
 
 			df_match = df_match[df_match["match"] == chosen_match]
-			teams = [df_match['home_team_id'][0], df_match['away_team_id'][0]]
-			df_gp = df_gp[df_gp['team_id'].isin(teams)]
+			match = df_match["match_id"].values.astype(int)
+			match = match[0]
+			df_gp = df_gp[df_gp["match_id"] == match]
+			
+
+
+			teams = [df_match['home_team_name'].values.astype(str)[0], df_match['away_team_name'].values.astype(str)[0]]
+			teams_id = [df_match['home_team_id'].values.astype(int)[0], df_match['away_team_id'].values.astype(int)[0]]
+			df_gp = df_gp[df_gp['team_id'].isin(teams_id)]
 
 
 			what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
 
 			if what_to_visualize == "One Team":
-				teams_playing = teams = [df_match['home_team_name'][0], df_match['away_team_name'][0]]
-				selected_team = st.selectbox("Show which team?", teams_playing)
-				if df_match["home_team_name"][0] == selected_team:
-					df_gp = df_gp[df_gp["team_id"] == df_match["home_team_id"][0]]
+				selected_team = st.selectbox("Show which team?", teams)
+				if df_match["home_team_name"].values.astype(str)[0] == selected_team:
+					chosen_team = df_match["home_team_id"].values.astype(int)[0]
 				else:
-					df_gp = df_gp[df_gp["team_id"] == df_match["away_team_id"][0]]
+					chosen_team = df_match["away_team_id"].values.astype(int)[0]
+
+				df_gp = df_gp[df_gp["team_id"] == chosen_team]
 		
 		if what_pass_data == "Season":
 			#Lookup table for season
