@@ -176,6 +176,12 @@ with st.spinner("Loading"):
 			df[['time_from_chain_start', 'time_difference']] = 0, 0
 
 			if type_of_model == "loglin":
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
+
 				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
@@ -183,7 +189,13 @@ with st.spinner("Loading"):
 
 				df['prob'] = df['prob_log'] * df['prob_lin']
 			else:
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
 				df = bld.__add_features(df, model_pass_log.model.exog_names)
+
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 
@@ -291,6 +303,10 @@ with st.spinner("Loading"):
 		df_dataset = df_dataset[df_dataset['start_y'] > 0]
 		df_dataset = df_dataset[df_dataset['end_x'] > 0]
 		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+		# Transform bools to int?
+		boolean_columns = [x for x, y in df_dataset.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+		if len(boolean_columns)>0:
+			df_dataset[boolean_columns] = df_dataset[boolean_columns].astype(int)
 
 		df_dataset = feature_creation(df_dataset)
 		df_dataset['const'] = 1
@@ -1023,6 +1039,11 @@ with st.spinner("Loading"):
 		# Only successful passes
 		dfr = dfr[(dfr['outcome'])]
 
+		# Transform bools to int?
+		boolean_columns = [x for x, y in dfr.dtypes.items() if y == bool and x in log_model.model.exog_names]
+		if len(boolean_columns)>0:
+			dfr[boolean_columns] = dfr[boolean_columns].astype(int)
+
 		#User can choose team or use all data
 		dataset = st.selectbox("Select Dataset for stats", ["Use All Data", "Choose League"])
 
@@ -1120,6 +1141,8 @@ with st.spinner("Loading"):
 			auc = skm.auc(fpr, tpr)
 			Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
 			score = skm.accuracy_score(Ylog, Ylog_pred_bin)
+			st.write(Ylin)
+			st.write(Ylin_pred)
 			rmse = skm.mean_squared_error(Ylin, Ylin_pred)
 			rmse = np.sqrt(rmse)
 			
@@ -1323,6 +1346,11 @@ with st.spinner("Loading"):
 		df_gp = df_gp[df_gp['start_y'] > 0]
 		df_gp = df_gp[df_gp['end_x'] > 0]
 		df_gp = df_gp[df_gp['end_y'] > 0]
+
+		# Transform bools to int?
+		boolean_columns = [x for x, y in df_gp.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+		if len(boolean_columns)>0:
+			df_gp[boolean_columns] = df_gp[boolean_columns].astype(int)
 
 		df_gp = feature_creation(df_gp)
 		df_gp['const'] = 1

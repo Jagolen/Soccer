@@ -29,19 +29,24 @@ def __add_features(df, model_variables):
     return df
 
 
-def add_pass_data(df):
+def add_pass_data(df, short_edge=False):
     '''
     Create a new dataframe for passes with random start values, ending at the pitches line and an xG = 0
     '''
     df1 = pd.DataFrame(np.random.uniform(0.0, 100.0, size = (100000, 4)), columns = ['start_x', 'start_y', 'end_x', 'end_y'])
+    edge = [0.0, 100.0]
+    if short_edge:
+        df1['end_x'] = pd.Series(np.tile(edge, len(df) // len(edge) + 1)[:len(df)]).sample(frac=1)
+    df1['end_y'] = pd.Series(np.tile(edge, len(df) // len(edge) + 1)[:len(df)]).sample(frac=1)
     df2 = pd.DataFrame(np.ones((100000, 3), int), columns = ['type_id', 'chain_start_type_id', 'prev_event_type'])
-    df3 = pd.DataFrame(np.zeros((100000, 3)), columns = ['time_difference', 'time_from_chain_start', 'pass_angle'])
+    df3 = pd.DataFrame(np.zeros((100000, 6)), columns = ['time_difference', 'time_from_chain_start', 'pass_angle',
+            'minute', 'second', 'match_state'])
     df4 = pd.DataFrame(np.full((100000, 24), False), columns = ['chain_goal', 'chain_shot','cross', 'head_pass',
             'through_pass', 'freekick_pass', 'corner_pass', 'throw-in', 'chipped', 'lay-off', 'launch', 'flick-on',
             'pull-back', 'switch', 'assist', '2nd_assist', 'in-swing', 'out-swing', 'straight', 'overhit_cross',
             'driven_cross', 'floated_cross', 'possession_goal', 'possession_shot'])
-    df5 = pd.DataFrame(np.full((100000, 10), 144716462022), columns = ['id', 'match_id', 'tournament_id', 'chain_id',
-            'possession_index', 'team_id', 'player_id', 'possession_team_id', 'event_index', 'prev_event_team'])
+    df5 = pd.DataFrame(np.random.randint(1, 1000000000, size = (100000, 11)), columns = ['id', 'match_id', 'tournament_id', 'chain_id',
+            'possession_index', 'team_id', 'player_id', 'possession_team_id', 'event_index', 'prev_event_team', 'season_id'])
     data_frames = [df1, df2, df3, df4, df5]
     new_df = pd.concat(data_frames, axis = 'columns')
 
@@ -51,7 +56,42 @@ def add_pass_data(df):
     new_df['possession_xG'], new_df['chain_xG'] = 0.0, 0.0
     new_df = feature_creation(new_df)
 
+    #display(show_arrows(new_df.iloc[:20]))
+
+    #display(new_df)
     df = pd.concat([df, new_df], ignore_index=True, sort=False)
+    return df
+
+
+def split_data(df, x='start_x', y='start_y'):
+
+    # Sort the datframe by x and y columns:
+    df = df.sort_values(by=[x, y])
+
+    # create and empty list to store the new data_frames:
+    df_list = []
+
+    # loop over the x and y values:
+    for a in np.arange(0, 100, 20):
+        for b in np.arange(0, 100, 20):
+            # select rows where the coordinates are within the range:
+            df_slice = df[(df[x] > a) & (df[x] <= a + 20) &
+                          (df[y] > b) & (df[y] <= b + 20)]
+            # add the dataframe to the list:
+            df_list.append(df_slice)
+
+    # find the smallest dataframe in the list:
+    min_rows = min([len(df) for df in df_list])
+    max_rows = max([len(df) for df in df_list])
+    print(min_rows, max_rows)
+
+    # loop over the list of dataframes and sample each to the size of min_rows
+    for i, df in enumerate(df_list):
+        df_list[i] = df.sample(min_rows)
+
+    # combine all smaller dataframes into one
+    df = pd.concat(df_list, ignore_index=True)
+
     return df
 
 
