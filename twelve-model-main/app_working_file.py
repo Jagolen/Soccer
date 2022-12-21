@@ -829,30 +829,30 @@ with st.spinner("Loading"):
 				if model_type == "Linear Regression Model":
 					lin_model, lin_model_scaled, x_test, y_test = bld.__create_linear_model(df_train, target_attribute, st.session_state.attributes)
 					st.write("Model has been trained")
-					show_train_stats = st.checkbox("Show statistics?")
-					if show_train_stats:
-						st.write(lin_model.summary2())
+					#show_train_stats = st.checkbox("Show statistics?")
+					#if show_train_stats:
+					#st.write(lin_model.summary2())
 					output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
 					lin_model.save(output_name, remove_data=False)
 					output_name_scaled = f"{ROOT_DIR}/models/lin_models_scaled/{model_name}"
 					lin_model_scaled.save(output_name_scaled, remove_data=False)
 					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
-					#st.session_state.train_the_model = False
+					st.session_state.train_the_model = False
 					
 
 				if model_type == "Logistic Regression Model":
 					#Target label
 					df_train[target_attribute] = df_train[target_attribute].astype(bool)
 					log_model, log_model_scaled, x_test, y_test = bld.__create_logistic_model(df_train, target_attribute, st.session_state.attributes)
-					show_train_stats = st.checkbox("Show statistics?")
-					if show_train_stats:
-						st.write(log_model.summary2())
+					#show_train_stats = st.checkbox("Show statistics?")
+					#if show_train_stats:
+					#st.write(log_model.summary2())
 					output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
 					log_model.save(output_name, remove_data=False)
 					output_name_scaled = f"{ROOT_DIR}/models/log_models_scaled/{model_name}"
 					log_model_scaled.save(output_name_scaled, remove_data=False)
 					st.write(f"Model has been saved at {output_name} and {output_name_scaled}")
-					#st.session_state.train_the_model = False
+					st.session_state.train_the_model = False
 			else:
 				st.write("Error: No target attribute")
 	
