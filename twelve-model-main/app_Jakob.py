@@ -247,19 +247,6 @@ with st.spinner("Loading"):
 
 				df['prob'] = df['prob_log'] * df['prob_lin']
 
-				if nr_models == "Compare":
-					# Transform bools to int?
-					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
-					if len(boolean_columns2)>0:
-						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
-
-					df2 = bld.__add_features(df2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
-
-					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
-					df2['prob_lin'] = model_pass_lin2.predict(df2[model_pass_lin2.model.exog_names])
-
-					df2['prob'] = df2['prob_log'] * df2['prob_lin']
-
 
 			else:
 
@@ -274,7 +261,20 @@ with st.spinner("Loading"):
 
 				df['prob'] = df['prob_log']
 
-				if nr_models == "Compare":
+			if nr_models == "Compare":
+				if type_of_model2 == "loglin":
+					# Transform bools to int?
+					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+					if len(boolean_columns2)>0:
+						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
+
+					df2 = bld.__add_features(df2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
+
+					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
+					df2['prob_lin'] = model_pass_lin2.predict(df2[model_pass_lin2.model.exog_names])
+
+					df2['prob'] = df2['prob_log'] * df2['prob_lin']
+				else:
 					# Transform bools to int?
 					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
 					if len(boolean_columns2)>0:
