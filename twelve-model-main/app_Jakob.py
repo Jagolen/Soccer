@@ -441,13 +441,22 @@ with st.spinner("Loading"):
 		df_dataset = df_dataset[df_dataset['start_y'] > 0]
 		df_dataset = df_dataset[df_dataset['end_x'] > 0]
 		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+		if nr_models == "Compare":
+			df_dataset2 = df_dataset.copy()
 		# Transform bools to int?
 		boolean_columns = [x for x, y in df_dataset.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
 		if len(boolean_columns)>0:
 			df_dataset[boolean_columns] = df_dataset[boolean_columns].astype(int)
+		if nr_models == "Compare":
+			boolean_columns2 = [x for x, y in df_dataset2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+			if len(boolean_columns2)>0:
+				df_dataset2[boolean_columns2] = df_dataset2[boolean_columns2].astype(int)
 
 		df_dataset = feature_creation(df_dataset)
 		df_dataset['const'] = 1
+		if nr_models == "Compare":
+			df_dataset2 = feature_creation(df_dataset2)
+			df_dataset2['const'] = 1			
 
 		if type_of_model == "loglin":
 			df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
@@ -460,6 +469,18 @@ with st.spinner("Loading"):
 			df_dataset['prob'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
 			df_dataset['prob'] = df_dataset['prob'].astype(float)
 		
+		if nr_models == "Compare":
+			if type_of_model2 == "loglin":
+				df_dataset2 = bld.__add_features(df_dataset2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
+				df_dataset2['prob_log'] = model_pass_log2.predict(df_dataset2[model_pass_log2.model.exog_names])
+				df_dataset2['prob_lin'] = model_pass_lin2.predict(df_dataset2[model_pass_lin2.model.exog_names])
+				df_dataset2['prob'] = df_dataset2['prob_log'] * df_dataset2['prob_lin']
+				df_dataset2['prob'] = df_dataset2['prob'].astype(float)
+			else:
+				df_dataset2 = bld.__add_features(df_dataset2, model_pass_log2.model.exog_names)
+				df_dataset2['prob'] = model_pass_log2.predict(df_dataset2[model_pass_log2.model.exog_names])
+				df_dataset2['prob'] = df_dataset2['prob'].astype(float)
+
 		how_many_points_save = st.text_input("Choose how many datapoints to save. A number under 10 000 is recommended")
 		
 		if how_many_points_save and how_many_points_save != 0:
@@ -536,6 +557,80 @@ with st.spinner("Loading"):
 					ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
 					plt.axis("off")
 					st.pyplot(fig)
+			if nr_models == "Compare":
+				df_dataset2 = df_dataset2.nlargest(how_many_points_save, 'prob')
+				min_value=df_dataset2["prob"].min()
+				max_value=df_dataset2["prob"].max()
+				
+				probability_slider2 = st.slider("Probability for second model", 
+					help="Probability that a pass leads to a shot which then leads to a goal. Limit this for fewer but (ideally) better passes",
+					min_value=float(min_value), 
+					max_value=float(max_value),
+					step=0.01,
+					value=float((max_value+min_value)/2))
+
+				df_dataset2 = df_dataset2[df_dataset2['prob'] > probability_slider2]
+				max_value = df_dataset2["prob"].max()
+
+				fig_columns2 = st.columns(len(boolean_features2)+2)
+
+				with fig_columns2[0]:
+					pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
+					fig, ax = pitch.grid(axis=False)
+					for i, row in df_dataset2.iterrows():
+						value = row["prob"]
+						#adjust the line width so that the more passes, the wider the line
+						line_width = (value / max_value)
+						#get angle
+						if (row.end_x - row.start_x) != 0:
+							angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
+						else:
+							angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
+
+						#plot lines on the pitch
+						if row.prob != max_value:
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+												alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+						else:
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+												alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
+						#annotate max text
+							ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+					ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+					plt.axis("off")
+					st.pyplot(fig)
+
+				for i, att in enumerate(boolean_features2):
+					with fig_columns2[i+1]:
+						temp_df = df_dataset2.copy()
+						temp_df = temp_df[temp_df[att[0]] == True]
+						max_value = temp_df["prob"].max()
+						pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
+						fig, ax = pitch.grid(axis=False)
+						for i, row in temp_df.iterrows():
+							value = row["prob"]
+							#adjust the line width so that better prob gives a wider line
+							line_width = (value / max_value)
+							
+							#get angle
+							if (row.end_x - row.start_x) != 0:
+								angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
+							else:
+								angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
+
+							#plot lines on the pitch
+							if row.prob != max_value:
+								pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+													alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+							else:
+								pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+													alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
+							#annotate max text
+								ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+						ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
+						plt.axis("off")
+						st.pyplot(fig)
+
 		else:
 			st.write("No data to visualize!")
 
