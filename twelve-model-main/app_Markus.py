@@ -35,6 +35,10 @@ def load_dataset():
 
 	return pd.read_parquet(f"{ROOT_DIR}/data/possessions_xg.parquet")
 
+def load_dataset2():
+
+	return pd.read_parquet(f"{ROOT_DIR}/data/match_info.parquet")
+
 
 def get_img_bytes(fig, custom=False, format='png', dpi=200):
 	tmpfile = BytesIO()
@@ -63,7 +67,7 @@ with st.spinner("Loading"):
 
 	if selected_sub_page == 'Visualize Model':
 
-		test_old_model = st.selectbox("Select Passing Model", ["Trained model", "xT Positional", 'xT Action Based'])
+		test_old_model = st.selectbox("Select Passing Model", ["Trained model","Test", "xT Positional", 'xT Action Based'])
 		type_of_model = st.selectbox("Select type of model", ["loglin", "log"])
 
 		#Load data
@@ -158,7 +162,7 @@ with st.spinner("Loading"):
 			df['prob'] = [get_EPV_at_location((x2, y2)) - get_EPV_at_location((start_x, start_y)) for x2, y2 in
 						  df[['end_x', 'end_y']].values]
 
-		else:
+		if test_old_model == "Trained model":
 
 			# weighed = st.checkbox("Weighted", True, help="multiplies final probability by 0.3")
 
@@ -172,14 +176,28 @@ with st.spinner("Loading"):
 			df[['time_from_chain_start', 'time_difference']] = 0, 0
 
 			if type_of_model == "loglin":
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
+
 				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+
+				df = feature_creation(df)
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 				df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
 
 				df['prob'] = df['prob_log'] * df['prob_lin']
 			else:
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
 				df = bld.__add_features(df, model_pass_log.model.exog_names)
+
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 
@@ -187,6 +205,53 @@ with st.spinner("Loading"):
 
 
 			df = df.fillna(0)
+
+		else: 
+
+			df = load_dataset()
+
+			df = df[df['chain_type'] == 'open_play']
+
+			# Only passes from attacking possessions
+			df = df[df['possession_team_id'] == df['team_id']]
+
+			# Only successful passes
+			df = df[(df['outcome'])]
+
+			""" boolean_features = [[x] for x, y in df.dtypes.items() if y == bool]
+
+			for f in boolean_features:
+				df[f[0]] = f[1] """
+
+			if type_of_model == "loglin":
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
+
+				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+
+				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
+				df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
+
+				df['prob'] = df['prob_log'] * df['prob_lin']
+			else:
+
+				# Transform bools to int?
+				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+				if len(boolean_columns)>0:
+					df[boolean_columns] = df[boolean_columns].astype(int)
+				df = bld.__add_features(df, model_pass_log.model.exog_names)
+
+
+				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
+
+				df['prob'] = df['prob_log']
+				
+
+			df = df.fillna(0)
+
 
 		# Heatmap
 		category_colors = plt.get_cmap('Greens')(np.linspace(0.10, 0.80, 50))
@@ -287,6 +352,10 @@ with st.spinner("Loading"):
 		df_dataset = df_dataset[df_dataset['start_y'] > 0]
 		df_dataset = df_dataset[df_dataset['end_x'] > 0]
 		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+		# Transform bools to int?
+		boolean_columns = [x for x, y in df_dataset.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+		if len(boolean_columns)>0:
+			df_dataset[boolean_columns] = df_dataset[boolean_columns].astype(int)
 
 		df_dataset = feature_creation(df_dataset)
 		df_dataset['const'] = 1
@@ -437,7 +506,8 @@ with st.spinner("Loading"):
 				that goes outside the pitch, hopefully will improve the model around the edges of the field")
 		
 		if extend_the_data:
-			df_train = bld.add_pass_data(df_train)
+			goalside = st.checkbox("Add passes for the goal side aswell?")
+			df_train = bld.add_pass_data(df_train, goalside)
 		
 		split_data = st.checkbox("Split data?", help="This will split the field into sections and draw as \
 			many samples from each section as the smallest section. This means each section will have the same\
@@ -808,9 +878,9 @@ with st.spinner("Loading"):
 				if model_type == "Linear Regression Model":
 					lin_model, lin_model_scaled, x_test, y_test = bld.__create_linear_model(df_train, target_attribute, st.session_state.attributes)
 					st.write("Model has been trained")
-					show_train_stats = st.checkbox("Show statistics?")
-					if show_train_stats:
-						st.write(lin_model.summary2())
+					#show_train_stats = st.checkbox("Show statistics?")
+					#if show_train_stats:
+					#st.write(lin_model.summary2())
 					output_name = f"{ROOT_DIR}/models/lin_models/{model_name}"
 					lin_model.save(output_name, remove_data=False)
 					output_name_scaled = f"{ROOT_DIR}/models/lin_models_scaled/{model_name}"
@@ -823,9 +893,9 @@ with st.spinner("Loading"):
 					#Target label
 					df_train[target_attribute] = df_train[target_attribute].astype(bool)
 					log_model, log_model_scaled, x_test, y_test = bld.__create_logistic_model(df_train, target_attribute, st.session_state.attributes)
-					show_train_stats = st.checkbox("Show statistics?")
-					if show_train_stats:
-						st.write(log_model.summary2())
+					#show_train_stats = st.checkbox("Show statistics?")
+					#if show_train_stats:
+					#st.write(log_model.summary2())
 					output_name = f"{ROOT_DIR}/models/log_models/{model_name}"
 					log_model.save(output_name, remove_data=False)
 					output_name_scaled = f"{ROOT_DIR}/models/log_models_scaled/{model_name}"
@@ -1018,6 +1088,11 @@ with st.spinner("Loading"):
 		# Only successful passes
 		dfr = dfr[(dfr['outcome'])]
 
+		# Transform bools to int?
+		boolean_columns = [x for x, y in dfr.dtypes.items() if y == bool and x in log_model.model.exog_names]
+		if len(boolean_columns)>0:
+			dfr[boolean_columns] = dfr[boolean_columns].astype(int)
+
 		#User can choose team or use all data
 		dataset = st.selectbox("Select Dataset for stats", ["Use All Data", "Choose League"])
 
@@ -1097,14 +1172,14 @@ with st.spinner("Loading"):
 		dfr['const'] = 1
 
 		# Evaluate combinations of features
-		dfr = bld.__add_features(dfr, PASS_LOG_MODEL_COLUMNS + PASS_LIN_MODEL_COLUMNS)
+		dfr = bld.__add_features(dfr, log_model.model.exog_names + lin_model.model.exog_names)
 		
 		#Prediction
 		X = dfr.copy()
-		Ylog = X.loc[:, X.columns == 'chain_shot']
-		Ylin = X.loc[:, X.columns == 'chain_xG']
-		Xlog = X[PASS_LOG_MODEL_COLUMNS]
-		Xlin = X[PASS_LIN_MODEL_COLUMNS]
+		Ylog = X.loc[:, X.columns == log_model.model.endog_names]
+		Ylin = X.loc[:, X.columns == lin_model.model.endog_names]
+		Xlog = X[log_model.model.exog_names]
+		Xlin = X[lin_model.model.exog_names]
 		Ylog_pred = log_model.predict(Xlog).values
 		Ylin_pred = lin_model.predict(Xlin).values
 
@@ -1115,6 +1190,8 @@ with st.spinner("Loading"):
 			auc = skm.auc(fpr, tpr)
 			Ylog_pred_bin = [round(elements) for elements in Ylog_pred]
 			score = skm.accuracy_score(Ylog, Ylog_pred_bin)
+			st.write(Ylin)
+			st.write(Ylin_pred)
 			rmse = skm.mean_squared_error(Ylin, Ylin_pred)
 			rmse = np.sqrt(rmse)
 			
@@ -1244,6 +1321,10 @@ with st.spinner("Loading"):
 		what_pass_data = st.selectbox("Look at individual matches or look at best passes in a season?", ["Individual Matches", "Season"])
 
 		if what_pass_data == "Individual Matches":
+
+			df_match = load_dataset2()
+
+
 			#Choose League
 			#Lookup table for league
 			tournament_id_lookup_table = {
@@ -1265,18 +1346,34 @@ with st.spinner("Loading"):
 			chosen_league = tournament_id_lookup_table[chosen_league]
 
 			df_gp = df_gp[df_gp["tournament_id"] == chosen_league]
+			df_match = df_match[df_match["tournament_id"] == chosen_league]
+			df_match["match"] = df_match['date'].astype(str) + " : " + df_match['home_team_name'].astype(str) + " - " + df_match['away_team_name'].astype(str)
 
-			match_values = pd.unique(df_gp["match_id"])
+			match_values = pd.unique(df_match["match"])
 			chosen_match = st.selectbox("Choose Match", match_values)
 
-			df_gp = df_gp[df_gp["match_id"] == chosen_match]
+			df_match = df_match[df_match["match"] == chosen_match]
+			match = df_match["match_id"].values.astype(int)
+			match = match[0]
+			df_gp = df_gp[df_gp["match_id"] == match]
+			
+
+
+			teams = [df_match['home_team_name'].values.astype(str)[0], df_match['away_team_name'].values.astype(str)[0]]
+			teams_id = [df_match['home_team_id'].values.astype(int)[0], df_match['away_team_id'].values.astype(int)[0]]
+			df_gp = df_gp[df_gp['team_id'].isin(teams_id)]
+
 
 			what_to_visualize = st.selectbox("Show both teams or only one team?", ["Both", "One Team"])
 
 			if what_to_visualize == "One Team":
-				teams_playing = pd.unique(df_gp["team_id"])
-				selected_team = st.selectbox("Show which team?", teams_playing)
-				df_gp = df_gp[df_gp["team_id"] == selected_team]
+				selected_team = st.selectbox("Show which team?", teams)
+				if df_match["home_team_name"].values.astype(str)[0] == selected_team:
+					chosen_team = df_match["home_team_id"].values.astype(int)[0]
+				else:
+					chosen_team = df_match["away_team_id"].values.astype(int)[0]
+
+				df_gp = df_gp[df_gp["team_id"] == chosen_team]
 		
 		if what_pass_data == "Season":
 			#Lookup table for season
@@ -1298,6 +1395,11 @@ with st.spinner("Loading"):
 		df_gp = df_gp[df_gp['start_y'] > 0]
 		df_gp = df_gp[df_gp['end_x'] > 0]
 		df_gp = df_gp[df_gp['end_y'] > 0]
+
+		# Transform bools to int?
+		boolean_columns = [x for x, y in df_gp.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
+		if len(boolean_columns)>0:
+			df_gp[boolean_columns] = df_gp[boolean_columns].astype(int)
 
 		df_gp = feature_creation(df_gp)
 		df_gp['const'] = 1
@@ -1329,88 +1431,114 @@ with st.spinner("Loading"):
 		
 		st.write(f"**Showing the best {st.session_state.top_pass} passes**")
 
-		#Alt A
-		selected_features_log = st.multiselect("Select features for the Logicstic Regression Model (Order Matters)", model_pass_log.model.exog_names)
+
+
+
+		pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
+		fig, ax = pitch.grid(axis=False)
+		for i, row in df_gp.iterrows():
+			value = row["rank"]
+			#adjust the line width so that the more passes, the wider the line
+			line_width = 3
+			#get angle
+			if (row.end_x - row.start_x) != 0:
+				angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
+			else:
+				angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
+
+			#plot lines on the pitch
+			pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+								alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
+			#annotate max text
+			ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+		ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+		plt.axis("off")
+		st.pyplot(fig)
+		next_ranks = []
+		prev_ranks = []
+		if st.session_state.top_pass > 10:
+			prev_ranks = st.button("Previous 10?")
+		if st.session_state.top_pass < len_of_df:
+			next_ranks = st.button("Next 10?")
+		if next_ranks:
+			st.session_state.top_pass += 10
+			st.experimental_rerun()
+		if prev_ranks:
+			st.session_state.top_pass -= 10
+			st.experimental_rerun()
+		top_ten = st.button("Top 10")
+		if top_ten:
+			st.session_state.top_pass = 10
+			st.experimental_rerun()
+
+		#Show the best passes
+		selected_features_log = [x for x in model_pass_log.model.exog_names if x != 'const']
 		if type_of_model == "loglin":
-			selected_features_lin = st.multiselect("Select features for the Linear Regression Model (Order Matters)", model_pass_lin.model.exog_names)
-		if (type_of_model == "log" and len(selected_features_log) == 5) or (type_of_model == "loglin" and len(selected_features_log) == 5 and len(selected_features_lin) == 5):
-			stats_df = pd.DataFrame()
-			stats_df["rank"] = df_gp["rank"]
-			stats_df["prob"] = df_gp["prob"]
-			log_res = []
-			for i in range(len(selected_features_log)):
+			selected_features_lin = [x for x in model_pass_lin.model.exog_names if x != 'const']
+		stats_df = pd.DataFrame()
+		stats_df["rank"] = df_gp["rank"]
+		stats_df["prob"] = df_gp["prob"]
+		log_res = []
+		for i in range(len(selected_features_log)):
+			temp = pd.DataFrame()
+			active_feats = ['const']
+			for j in range(i+1):
+				active_feats.append(selected_features_log[j])
+			not_selected_feat = [x for x in model_pass_log.model.exog_names if x not in active_feats]
+			for feat in active_feats:
+				temp[feat] = df_gp[feat]
+			for feat in not_selected_feat:
+				temp[feat] = 0
+			pred_single = model_pass_log.predict(temp)
+			if i == 0:
+				stats_df[selected_features_log[i]] = pred_single
+			else:
+				stats_df[selected_features_log[i]] = pred_single - stats_df[selected_features_log[i-1]]
+		stats_df.reset_index(drop=True, inplace=True)
+		stats_df = stats_df.T
+
+		if type_of_model == "loglin":
+			stats_df_lin = pd.DataFrame()
+			stats_df_lin["rank"] = df_gp["rank"]
+			stats_df_lin["prob"] = df_gp["prob"]
+			lin_res = []
+			for i in range(len(selected_features_lin)):
 				temp = pd.DataFrame()
-				active_feats = []
+				active_feats = ['const']
 				for j in range(i+1):
-					active_feats.append(selected_features_log[j])
-				not_selected_feat = [x for x in model_pass_log.model.exog_names if x not in active_feats]
+					active_feats.append(selected_features_lin[j])
+				not_selected_feat = [x for x in model_pass_lin.model.exog_names if x not in active_feats]
 				for feat in active_feats:
 					temp[feat] = df_gp[feat]
 				for feat in not_selected_feat:
 					temp[feat] = 0
-				pred_single = model_pass_log.predict(temp)
+				pred_single = model_pass_lin.predict(temp)
 				if i == 0:
-					stats_df[f"{selected_features_log[i]} (log)"] = pred_single
+					stats_df_lin[selected_features_lin[i]] = pred_single
 				else:
-					stats_df[f"{selected_features_log[i]} (log)"] = pred_single - stats_df[f"{selected_features_log[i-1]} (log)"]
-
+					stats_df_lin[selected_features_lin[i]] = pred_single - stats_df_lin[selected_features_lin[i-1]]
+			stats_df_lin.reset_index(drop=True, inplace=True)
+			stats_df_lin = stats_df_lin.T
+		for i in range(10):
+			stat_log = stats_df.copy()
+			stat_log = stat_log[i]
+			st.write(f"**Pass Rank: {stat_log['rank'].astype(int)}, Prob: {stat_log['prob']}**")
+			stat_log = stat_log.drop(['rank', 'prob'])
 			if type_of_model == "loglin":
-				lin_res = []
-				for i in range(len(selected_features_lin)):
-					temp = pd.DataFrame()
-					active_feats = []
-					for j in range(i+1):
-						active_feats.append(selected_features_lin[j])
-					not_selected_feat = [x for x in model_pass_lin.model.exog_names if x not in active_feats]
-					for feat in active_feats:
-						temp[feat] = df_gp[feat]
-					for feat in not_selected_feat:
-						temp[feat] = 0
-					pred_single = model_pass_lin.predict(temp)
-					if i == 0:
-						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single
-					else:
-						stats_df[f"{selected_features_lin[i]} (lin)"] = pred_single - stats_df[f"{selected_features_lin[i-1]} (lin)"]
-
-			pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
-			fig, ax = pitch.grid(axis=False)
-			for i, row in df_gp.iterrows():
-				value = row["rank"]
-				#adjust the line width so that the more passes, the wider the line
-				line_width = 3
-				#get angle
-				if (row.end_x - row.start_x) != 0:
-					angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
-				else:
-					angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
-
-				#plot lines on the pitch
-				pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
-									alpha=0.6, width=line_width, zorder=2, color=get_cmap('Greens')(row.prob/max_value), ax = ax["pitch"])
-				#annotate max text
-				ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
-			ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
-			plt.axis("off")
-			st.pyplot(fig)
-			next_ranks = []
-			prev_ranks = []
-			if st.session_state.top_pass > 10:
-				prev_ranks = st.button("Previous 10?")
-			if st.session_state.top_pass < len_of_df:
-				next_ranks = st.button("Next 10?")
-			if next_ranks:
-				st.session_state.top_pass += 10
-				st.experimental_rerun()
-			if prev_ranks:
-				st.session_state.top_pass -= 10
-				st.experimental_rerun()
-			top_ten = st.button("Top 10")
-			if top_ten:
-				st.session_state.top_pass = 10
-				st.experimental_rerun()
+				coef_cont_log, coef_cont_lin = st.columns(2)
+				stat_lin = stats_df_lin.copy()
+				stat_lin = stat_lin[i]
+				stat_lin = stat_lin.drop(['rank', 'prob'])
+				with coef_cont_log:
+					st.write("**Top 3 Coefficient Contributions (Log Model)**")
+					stat_log = stat_log.nlargest(3)
+					st.table(stat_log)
+				with coef_cont_lin:
+					st.write("**Top 3 Coefficient Contributions (Lin Model)**")
+					stat_lin = stat_lin.astype(float).nlargest(3)
+					st.table(stat_lin)
 			
-			#Show the table
-			st.table(stats_df)
-		
-		else:
-			st.write("Select five features!")
+			else:
+				st.write("**Top 3 Coefficient Contributions**")
+				stat_log = stat_log.nlargest(3)
+				st.table(stat_log)
