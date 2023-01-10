@@ -184,7 +184,7 @@ def __create_linear_model(df, target_label, model_variables):
 
     X = X[X[target_label] > 0] #Not sure why this would be needed
 
-    Y = X.loc[:, X.columns == target_label]
+    Y = X[target_label]
     X = X[model_variables]
 
     scaler = StandardScaler()
@@ -193,14 +193,16 @@ def __create_linear_model(df, target_label, model_variables):
 
     # # Split Data into Test & Training Sets
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y)
+    X_scaled = X_scaled.reset_index()
+    Y = Y.reset_index()
     X_train_scaled, X_test_scaled, Y_train_scaled, Y_test_scaled = train_test_split(X_scaled, Y)
 
     # Fit Model
-    Model = sm.OLS(Y_train.values, X_train)
+    Model = sm.OLS(Y_train, X_train)
     Lin_xG_model = Model.fit()
 
     # Fit Scaled Model
-    Model_scaled = sm.OLS(Y_train_scaled.values, X_train_scaled)
+    Model_scaled = sm.OLS(Y_train_scaled, X_train_scaled)
     Lin_xG_model_scaled = Model.fit()
 
     return Lin_xG_model, Lin_xG_model_scaled, X_test, Y_test
