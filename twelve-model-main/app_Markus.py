@@ -67,16 +67,21 @@ with st.spinner("Loading"):
 
 	if selected_sub_page == 'Visualize Model':
 
-		test_old_model = st.selectbox("Select Passing Model", ["Trained model","Test", "xT Positional", 'xT Action Based'])
+		test_old_model = st.selectbox("Select Passing Model", ["Trained model", "xT Positional", 'xT Action Based', 'Real data'])
 		type_of_model = st.selectbox("Select type of model", ["loglin", "log"])
-
+		if test_old_model == "Trained model" or 'Real data':
+			nr_models = st.selectbox("Compare two models or visualize one model?", ["One Model", "Compare"])
+		else:
+			nr_models = "One Model"
+		if nr_models == "Compare":
+			type_of_model2 = st.selectbox("Select type of model for the second model", ["loglin", "log"])
 		#Load data
 		df_dataset = load_dataset()
 
 
 		#Create list of available models
 
-		if type_of_model == "loglin":
+		if type_of_model == "loglin" or (nr_models == "Compare" and type_of_model2 == "loglin"):
 			model_names_lin = []
 			for files in os.listdir(f"{ROOT_DIR}/models/lin_models"):
 				if files.endswith(".sav"):
@@ -88,6 +93,8 @@ with st.spinner("Loading"):
 				model_names_log.append(files)
 
 		# Load Models
+		if nr_models == "Compare":
+			st.write("**First model**")
 		load_log, load_lin = st.columns(2)
 		with load_log:
 			selected_log_model = st.selectbox("Select Logistic Model", model_names_log)
@@ -97,13 +104,33 @@ with st.spinner("Loading"):
 				selected_lin_model = st.selectbox("Select Linear Model", model_names_lin)
 			else:
 				st.write("")
+		
+		if nr_models == "Compare":
+			st.write("**Second Model**")
+			load_log2, load_lin2 = st.columns(2)
+			with load_log2:
+				selected_log_model2 = st.selectbox("Select Logistic Model for the second model", model_names_log)
+			with load_lin2:
+				if type_of_model2 == "loglin":
+					selected_lin_model2 = st.selectbox("Select Linear Model for the second model", model_names_lin)
+				else:
+					st.write("")
+
+
 
 		#Load log & lin models
 		model_pass_log = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
 		if type_of_model == "loglin":
 			model_pass_lin = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+		
+		if nr_models == "Compare":
+			model_pass_log2 = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model2}", 'rb'))
+			if type_of_model2 == "loglin":
+				model_pass_lin2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model2}", 'rb'))
+			st.write("**First Model**")
 
-		if test_old_model == "Trained model":
+
+		if test_old_model == "Trained model" or 'Real_data':
 			#List over features for both models
 			if type_of_model == "loglin":
 				features_log_lin = model_pass_log.model.exog_names + model_pass_lin.model.exog_names
@@ -123,6 +150,28 @@ with st.spinner("Loading"):
 					feature.append(True)
 				else:
 					feature.append(False)
+
+			if nr_models == "Compare":
+				st.write("**Second Model**")
+				if type_of_model2 == "loglin":
+					features_log_lin2 = model_pass_log.model.exog_names + model_pass_lin.model.exog_names
+				else:
+					features_log_lin2 = model_pass_log.model.exog_names
+				features_log_lin2 = [f.split("*") for f in features_log_lin2]
+				features_log_lin2 = [x for y in features_log_lin2 for x in y]
+				features_log_lin2 = list(set(features_log_lin2))
+				features_log_lin2 = [x for x in features_log_lin2]
+				boolean_features2 = [[x] for x, y in df_dataset.dtypes.items() if y == bool and x in features_log_lin2]
+
+				#Setting features True or False
+				columns = st.columns(len(boolean_features2)+1)
+				for i, feature2 in enumerate(boolean_features2):
+					temp_value2 = columns[i].checkbox(feature2[0], key=feature2[0]+"2")
+					if temp_value2:
+						feature2.append(True)
+					else:
+						feature2.append(False)
+
 		else:
 			columns = st.columns(6)
 			assist = columns[0].checkbox('Assist')
@@ -170,13 +219,22 @@ with st.spinner("Loading"):
 
 			for f in boolean_features:
 				df[f[0]] = f[1]
+			
+			if nr_models == "Compare":
+				df2 = create_dataset_start(start_x, start_y, not starting_point, simple=False)
+
+				for f in boolean_features2:
+					df2[f[0]] = f[1]
+
 
 			#df[['assist', 'cross', 'pull-back', 'switch',
 			#	'through_pass']] = assist, cross, cutback, switch, through_pass
-			df[['time_from_chain_start', 'time_difference']] = 0, 0
+			df[['time_from_chain_start', 'time_difference','match_state']] = 0, 0, 0
+
+			if nr_models == "Compare":
+				df2[['time_from_chain_start', 'time_difference','match_state']] = 0, 0, 0
 
 			if type_of_model == "loglin":
-
 				# Transform bools to int?
 				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
 				if len(boolean_columns)>0:
@@ -184,12 +242,12 @@ with st.spinner("Loading"):
 
 				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
 
-				df = feature_creation(df)
-
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 				df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
 
 				df['prob'] = df['prob_log'] * df['prob_lin']
+
+
 			else:
 
 				# Transform bools to int?
@@ -203,10 +261,38 @@ with st.spinner("Loading"):
 
 				df['prob'] = df['prob_log']
 
+			if nr_models == "Compare":
+				if type_of_model2 == "loglin":
+					# Transform bools to int?
+					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+					if len(boolean_columns2)>0:
+						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
+
+					df2 = bld.__add_features(df2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
+
+					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
+					df2['prob_lin'] = model_pass_lin2.predict(df2[model_pass_lin2.model.exog_names])
+
+					df2['prob'] = df2['prob_log'] * df2['prob_lin']
+				else:
+					# Transform bools to int?
+					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+					if len(boolean_columns2)>0:
+						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
+					df2 = bld.__add_features(df2, model_pass_log2.model.exog_names)
+
+
+					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
+
+					df2['prob'] = df2['prob_log']
+
+
 
 			df = df.fillna(0)
+			if nr_models == "Compare":
+				df2 = df2.fillna(0)
 
-		else: 
+		else:
 
 			df = load_dataset()
 
@@ -218,40 +304,93 @@ with st.spinner("Loading"):
 			# Only successful passes
 			df = df[(df['outcome'])]
 
-			""" boolean_features = [[x] for x, y in df.dtypes.items() if y == bool]
-
-			for f in boolean_features:
-				df[f[0]] = f[1] """
-
+			df2 = df
+		
 			if type_of_model == "loglin":
-
 				# Transform bools to int?
 				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
 				if len(boolean_columns)>0:
 					df[boolean_columns] = df[boolean_columns].astype(int)
 
+				df = feature_creation(df)
+
 				df = bld.__add_features(df, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
+
+				df['const'] = 1
+
+				df = df.loc[(df['start_x'] >= start_x-5) & (df['start_x'] <= start_x+5)]
+				df = df.loc[(df['start_y'] >= start_y-5) & (df['start_y'] <= start_y+5)]
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 				df['prob_lin'] = model_pass_lin.predict(df[model_pass_lin.model.exog_names])
 
 				df['prob'] = df['prob_log'] * df['prob_lin']
+
+
 			else:
 
 				# Transform bools to int?
 				boolean_columns = [x for x, y in df.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
 				if len(boolean_columns)>0:
 					df[boolean_columns] = df[boolean_columns].astype(int)
-				df = bld.__add_features(df, model_pass_log.model.exog_names)
+				
+				df = feature_creation(df)
 
+				df = bld.__add_new_features(df, model_pass_log.model.exog_names)
+
+				df['const'] = 1
+
+				df = df.loc[(df['start_x'] >= start_x-5) & (df['start_x'] <= start_x+5)]
+				df = df.loc[(df['start_y'] >= start_y-5) & (df['start_y'] <= start_y+5)]
 
 				df['prob_log'] = model_pass_log.predict(df[model_pass_log.model.exog_names])
 
 				df['prob'] = df['prob_log']
-				
+
+			if nr_models == "Compare":
+				if type_of_model2 == "loglin":
+					# Transform bools to int?
+					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+					if len(boolean_columns2)>0:
+						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
+
+					df2 = feature_creation(df2)
+
+					df2 = bld.__add_features(df2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
+
+					df2['const'] = 1
+
+					df2 = df2.loc[(df2['start_x'] >= start_x-5) & (df2['start_x'] <= start_x+5)]
+					df2 = df2.loc[(df2['start_y'] >= start_y-5) & (df2['start_y'] <= start_y+5)]
+
+					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
+					df2['prob_lin'] = model_pass_lin2.predict(df2[model_pass_lin2.model.exog_names])
+
+					df2['prob'] = df2['prob_log'] * df2['prob_lin']
+				else:
+					# Transform bools to int?
+					boolean_columns2 = [x for x, y in df2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+					if len(boolean_columns2)>0:
+						df2[boolean_columns2] = df2[boolean_columns2].astype(int)
+					
+					df2 = feature_creation(df2)
+
+					df2 = bld.__add_new_features(df2, model_pass_log2.model.exog_names)
+
+					df2['const'] = 1
+
+					df2 = df2.loc[(df2['start_x'] >= start_x-5) & (df2['start_x'] <= start_x+5)]
+					df2 = df2.loc[(df2['start_y'] >= start_y-5) & (df2['start_y'] <= start_y+5)]
+
+					df2['prob_log'] = model_pass_log2.predict(df2[model_pass_log2.model.exog_names])
+
+					df2['prob'] = df2['prob_log']
+
+
 
 			df = df.fillna(0)
-
+			if nr_models == "Compare":
+				df2 = df2.fillna(0)
 
 		# Heatmap
 		category_colors = plt.get_cmap('Greens')(np.linspace(0.10, 0.80, 50))
@@ -293,6 +432,9 @@ with st.spinner("Loading"):
 			columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
 			columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
 		else:
+			if nr_models == "Compare":
+				st.write("**First Model**")
+
 			if type_of_model == "loglin":
 				probabilities = ['prob_log', 'prob_lin', 'prob']
 				columns = st.columns(3)
@@ -318,9 +460,11 @@ with st.spinner("Loading"):
 				bin_statistic = pitch.bin_statistic(df[row_x], df[row_y], values=df[row], statistic='mean',
 													bins=(13, 7))
 
-				pcm = pitch.heatmap(bin_statistic, ax=ax, cmap='Greens', edgecolors='#22312b', vmax=0.3, vmin=0)
+				
+				pcm = pitch.heatmap(bin_statistic, ax=ax, cmap='Greens', edgecolors='#22312b', vmax=max(df[row]), vmin=0)
 				labels = pitch.label_heatmap(bin_statistic, color='k', fontsize=10, ax=ax, ha='center', va='center',
-											 str_format='{:.3f}')
+											str_format='{:.3f}')
+
 
 				fig.colorbar(pcm, ax=ax, shrink=0.75)  # ,orientation='horizontal',pad=0.05)
 
@@ -338,6 +482,53 @@ with st.spinner("Loading"):
 				columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
 				columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}.png")
 
+			if nr_models == "Compare":
+				st.write("**Second Model**")
+				if type_of_model2 == "loglin":
+					probabilities = ['prob_log', 'prob_lin', 'prob']
+					columns = st.columns(3)
+				else:
+					probabilities = ['prob']
+					columns = st.columns(1)
+				for i, row in enumerate(probabilities):
+					# Pitch
+					pitch = Pitch(pitch_type='opta',
+								linewidth=1,
+								goal_type='box',
+								line_zorder=2)
+					fig, axs = pitch.grid(figheight=8, title_height=0.05, endnote_space=0,
+										# Turn off the endnote/title axis. I usually do this after
+										# I am happy with the chart layout and text placement
+										axis=False,
+										title_space=0.01, grid_height=0.92, endnote_height=0.02)
+					ax = axs['pitch']
+					# Add weight to probability like in twelve old model
+					# if weighed and row == 'prob':
+					#    df[row] *= 0.3
+
+					bin_statistic = pitch.bin_statistic(df2[row_x], df2[row_y], values=df2[row], statistic='mean',
+														bins=(13, 7))
+
+					pcm = pitch.heatmap(bin_statistic, ax=ax, cmap='Greens', edgecolors='#22312b', vmax=max(df[row]), vmin=0)
+					labels = pitch.label_heatmap(bin_statistic, color='k', fontsize=10, ax=ax, ha='center', va='center',
+												str_format='{:.3f}')
+
+					fig.colorbar(pcm, ax=ax, shrink=0.75)  # ,orientation='horizontal',pad=0.05)
+
+					# Starting point
+					if starting_point:
+						pitch.plot(start_x, start_y, zorder=10,
+								marker="o", markersize=16,
+								markeredgewidth=2,
+								markeredgecolor='k',
+								ax=ax)
+
+					pitch.draw(ax)
+					ax.set_title(f"{test_old_model} ({row})")
+
+					columns[i].pyplot(fig, dpi=100, transparent=False, bbox_inches=None)
+					columns[i].download_button('Download file', get_img_bytes(fig), f"{test_old_model}2.png")
+
 		# Only Open play passes
 		df_dataset = df_dataset[df_dataset['chain_type'] == 'open_play']
 
@@ -352,13 +543,22 @@ with st.spinner("Loading"):
 		df_dataset = df_dataset[df_dataset['start_y'] > 0]
 		df_dataset = df_dataset[df_dataset['end_x'] > 0]
 		df_dataset = df_dataset[df_dataset['end_y'] > 0]
+		if nr_models == "Compare":
+			df_dataset2 = df_dataset.copy()
 		# Transform bools to int?
 		boolean_columns = [x for x, y in df_dataset.dtypes.items() if y == bool and x in model_pass_log.model.exog_names]
 		if len(boolean_columns)>0:
 			df_dataset[boolean_columns] = df_dataset[boolean_columns].astype(int)
+		if nr_models == "Compare":
+			boolean_columns2 = [x for x, y in df_dataset2.dtypes.items() if y == bool and x in model_pass_log2.model.exog_names]
+			if len(boolean_columns2)>0:
+				df_dataset2[boolean_columns2] = df_dataset2[boolean_columns2].astype(int)
 
 		df_dataset = feature_creation(df_dataset)
 		df_dataset['const'] = 1
+		if nr_models == "Compare":
+			df_dataset2 = feature_creation(df_dataset2)
+			df_dataset2['const'] = 1			
 
 		if type_of_model == "loglin":
 			df_dataset = bld.__add_features(df_dataset, model_pass_log.model.exog_names + model_pass_lin.model.exog_names)
@@ -371,6 +571,18 @@ with st.spinner("Loading"):
 			df_dataset['prob'] = model_pass_log.predict(df_dataset[model_pass_log.model.exog_names])
 			df_dataset['prob'] = df_dataset['prob'].astype(float)
 		
+		if nr_models == "Compare":
+			if type_of_model2 == "loglin":
+				df_dataset2 = bld.__add_features(df_dataset2, model_pass_log2.model.exog_names + model_pass_lin2.model.exog_names)
+				df_dataset2['prob_log'] = model_pass_log2.predict(df_dataset2[model_pass_log2.model.exog_names])
+				df_dataset2['prob_lin'] = model_pass_lin2.predict(df_dataset2[model_pass_lin2.model.exog_names])
+				df_dataset2['prob'] = df_dataset2['prob_log'] * df_dataset2['prob_lin']
+				df_dataset2['prob'] = df_dataset2['prob'].astype(float)
+			else:
+				df_dataset2 = bld.__add_features(df_dataset2, model_pass_log2.model.exog_names)
+				df_dataset2['prob'] = model_pass_log2.predict(df_dataset2[model_pass_log2.model.exog_names])
+				df_dataset2['prob'] = df_dataset2['prob'].astype(float)
+
 		how_many_points_save = st.text_input("Choose how many datapoints to save. A number under 10 000 is recommended")
 		
 		if how_many_points_save and how_many_points_save != 0:
@@ -447,6 +659,80 @@ with st.spinner("Loading"):
 					ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
 					plt.axis("off")
 					st.pyplot(fig)
+			if nr_models == "Compare":
+				df_dataset2 = df_dataset2.nlargest(how_many_points_save, 'prob')
+				min_value=df_dataset2["prob"].min()
+				max_value=df_dataset2["prob"].max()
+				
+				probability_slider2 = st.slider("Probability for second model", 
+					help="Probability that a pass leads to a shot which then leads to a goal. Limit this for fewer but (ideally) better passes",
+					min_value=float(min_value), 
+					max_value=float(max_value),
+					step=0.01,
+					value=float((max_value+min_value)/2))
+
+				df_dataset2 = df_dataset2[df_dataset2['prob'] > probability_slider2]
+				max_value = df_dataset2["prob"].max()
+
+				fig_columns2 = st.columns(len(boolean_features2)+2)
+
+				with fig_columns2[0]:
+					pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
+					fig, ax = pitch.grid(axis=False)
+					for i, row in df_dataset2.iterrows():
+						value = row["prob"]
+						#adjust the line width so that the more passes, the wider the line
+						line_width = (value / max_value)
+						#get angle
+						if (row.end_x - row.start_x) != 0:
+							angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
+						else:
+							angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
+
+						#plot lines on the pitch
+						if row.prob != max_value:
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+												alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+						else:
+							pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+												alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
+						#annotate max text
+							ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+					ax['title'].text(0.5, 0.5, 'All Data', ha='center', va='center', fontsize=30)
+					plt.axis("off")
+					st.pyplot(fig)
+
+				for i, att in enumerate(boolean_features2):
+					with fig_columns2[i+1]:
+						temp_df = df_dataset2.copy()
+						temp_df = temp_df[temp_df[att[0]] == True]
+						max_value = temp_df["prob"].max()
+						pitch = Pitch(line_color='black',pitch_type='opta', line_zorder = 2)
+						fig, ax = pitch.grid(axis=False)
+						for i, row in temp_df.iterrows():
+							value = row["prob"]
+							#adjust the line width so that better prob gives a wider line
+							line_width = (value / max_value)
+							
+							#get angle
+							if (row.end_x - row.start_x) != 0:
+								angle = np.arctan((row.end_y - row.start_y)/(row.end_x - row.start_x))*180/np.pi
+							else:
+								angle = np.arctan((row.end_y - row.start_y)/0.000001)*180/np.pi
+
+							#plot lines on the pitch
+							if row.prob != max_value:
+								pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+													alpha=0.6, width=line_width, zorder=2, color="blue", ax = ax["pitch"])
+							else:
+								pitch.arrows(row.start_x, row.start_y, row.end_x, row.end_y,
+													alpha=1, width=line_width*2, zorder=2, color="red", ax = ax["pitch"])        
+							#annotate max text
+								ax["pitch"].text((row.start_x+row.end_x-8)/2, (row.start_y+row.end_y-4)/2, str(value)[:5], fontweight = "bold", color = "purple", zorder = 4, fontsize = 16, rotation = int(angle))
+						ax['title'].text(0.5, 0.5, att[0], ha='center', va='center', fontsize=30)
+						plt.axis("off")
+						st.pyplot(fig)
+
 		else:
 			st.write("No data to visualize!")
 
@@ -781,14 +1067,6 @@ with st.spinner("Loading"):
 				'start_x*start_x*end_x',
 				'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
 				'end_y_adj*end_y_adj*start_y_adj',
-				'switch',
-				'pass_length',
-				'assist',
-				'directness*end_x',
-				'distance_start',
-				'distance_end',
-				'time_difference',
-				'time_from_chain_start'
 			]
 			st.session_state.active_features = []
 			st.experimental_rerun()
