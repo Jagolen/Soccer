@@ -229,10 +229,10 @@ with st.spinner("Loading"):
 
 			#df[['assist', 'cross', 'pull-back', 'switch',
 			#	'through_pass']] = assist, cross, cutback, switch, through_pass
-			df[['time_from_chain_start', 'time_difference','match_state']] = 0, 0, 0
+			df[['time_from_chain_start', 'time_difference','match_state','minute','second']] = 0, 0, 0, 0, 0
 
 			if nr_models == "Compare":
-				df2[['time_from_chain_start', 'time_difference','match_state']] = 0, 0, 0
+				df2[['time_from_chain_start', 'time_difference','match_state','minute','second']] = 0, 0, 0, 0, 0
 
 			if type_of_model == "loglin":
 				# Transform bools to int?
