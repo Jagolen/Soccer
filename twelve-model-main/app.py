@@ -1067,6 +1067,14 @@ with st.spinner("Loading"):
 				'start_x*start_x*end_x',
 				'end_x*end_x*start_x', 'start_x*start_x*start_y_adj', 'end_x*end_x*end_y_adj',
 				'end_y_adj*end_y_adj*start_y_adj',
+				'switch',
+				'pass_length',
+				'assist',
+				'directness*end_x',
+				'distance_start',
+				'distance_end',
+				'time_difference',
+				'time_from_chain_start'
 			]
 			st.session_state.active_features = []
 			st.experimental_rerun()
@@ -1358,7 +1366,11 @@ with st.spinner("Loading"):
 
 
 		# Load Models
-		#model_pass_log, model_pass_lin, = get_pass_model()
+		log_model = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model}", 'rb'))
+		lin_model = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model}", 'rb'))
+		if how_many_models_test == "Compare two models":
+			log_model2 = pickle.load(open(f"{ROOT_DIR}/models/log_models/{selected_log_model2}", 'rb'))
+			lin_model2 = pickle.load(open(f"{ROOT_DIR}/models/lin_models/{selected_lin_model2}", 'rb'))
 
 		# For ROC/SCORE
 		dfr = pd.read_parquet(f"{ROOT_DIR}/data/possessions_xg.parquet")
